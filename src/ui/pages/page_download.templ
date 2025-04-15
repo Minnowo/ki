@@ -1,0 +1,48 @@
+package pages
+
+import(
+"ki/src/handlers/str"
+	"encoding/hex"
+)
+templ PageDownload( view *PageDownloadView) {
+
+    @Base() {
+
+        {{ 
+            idHex := view.FileID.Hex()
+            ddl   := "/api/download/" + idHex
+        }}
+
+        <br/>
+        <h1>Download a file</h1>
+        <h3>File size is { str.PrettyByteSize64(view.File.Size) } </h3>
+        <br/>
+
+        <table class="table-auto table-padded">
+
+        <tbody class="text-right">
+
+            <tr title="The file identifier">
+                <td class="px-2"> ID </td>
+                <td> <pre> { idHex } </pre> </td>
+            </tr>
+            <tr title="The filename">
+                <td class="px-2"> Name </td>
+                <td> <pre> { view.File.Name } </pre> </td>
+            </tr>
+            <tr title="The file SHA256 digest">
+                <td class="px-2"> SHA256 </td>
+                <td> <pre> { hex.EncodeToString(view.File.Hash) } </pre> </td>
+            </tr>
+
+            <tr title="File download link">
+                <td colspan="2"> 
+                    <a href={ templ.SafeURL(ddl) }> Download </a>
+                </td>
+            </tr>
+
+        </tbody>
+
+        </table>
+    }
+}
