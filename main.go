@@ -3,6 +3,7 @@ package main
 import (
 	v1 "ki/src/api/v1"
 	"ki/src/assets"
+	"ki/src/config"
 	"ki/src/logging"
 	"net/http"
 	"time"
@@ -25,8 +26,9 @@ func main() {
 		Handler: r,
 		Addr:    addr,
 		// Good practice: enforce timeouts for servers you create!
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		ReadTimeout:    15 * time.Second,
+		MaxHeaderBytes: 50 * config.KB,
 	}
 
 	apiv1 := v1.APIV1{}

@@ -13,7 +13,7 @@ templ PageUpload() {
 
         <br/>
         <h1>Upload a file</h1>
-        <h3>File must be less than { str.PrettyByteSize64(config.MAX_UPLOAD_MEMORY) } </h3>
+        <h3>File must be less than { str.PrettyByteSize64(config.MAX_UPLOAD_SIZE) } </h3>
         <br/>
 
         <form enctype="multipart/form-data" action="/api/upload" method="POST">

@@ -12,7 +12,7 @@ const (
 	YB
 )
 
-const MAX_UPLOAD_MEMORY int64 = 10 * MB
+const MAX_UPLOAD_SIZE int64 = 80 * MB
 
 type AESKeySize int
 

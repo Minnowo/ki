@@ -192,7 +192,7 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID) error {
 	return nil
 }
 
-func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int, ogName string) (*FileID, error) {
+func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int, ogName string, update func(int)) (*FileID, error) {
 
 	key := make([]byte, config.AES_KEY_SIZE)
 	rand.Read(key)
@@ -212,7 +212,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	hash := sha256.New()
 
 	fileSize := int64(0)
-	buffer := make([]byte, 1024*1024)
+	buffer := make([]byte, 4*config.KB)
 	for {
 
 		n, err := r.Read(buffer)
@@ -221,8 +221,9 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 			fileSize += int64(n)
 			aesw.Write(buffer[0:n])
 			hash.Write(buffer[0:n])
-		} else if n == 0 {
-			break
+			if update != nil {
+				update(n)
+			}
 		}
 
 		if err != nil {
@@ -230,7 +231,16 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 			if err == io.EOF {
 				break
 			}
+
+			file.Close()
+			os.Remove(file.Name())
+
+			log.Info().Err(err).Msg("returning error from SaveFile")
 			return nil, err
+		}
+
+		if n == 0 {
+			break
 		}
 	}
 
