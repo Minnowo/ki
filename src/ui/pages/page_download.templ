@@ -1,9 +1,19 @@
 package pages
 
 import(
-"ki/src/handlers/str"
+    "ki/src/handlers/str"
+    "ki/src/config"
 	"encoding/hex"
+	"strconv"
+	"time"
 )
+
+
+templ downloadUsingCurl( url string ){ 
+
+}
+
+
 templ PageDownload( view *PageDownloadView) {
 
     @Base() {
@@ -30,6 +40,32 @@ templ PageDownload( view *PageDownloadView) {
                 <td class="px-2"> Name </td>
                 <td> <pre> { view.File.Name } </pre> </td>
             </tr>
+
+            if config.SHOW_DOWNLOADS_REMAINING {
+
+                <tr title="The number of downloads until expirey">
+                    <td class="px-2"> Downloads </td>
+                    <td> <pre> { strconv.Itoa(view.File.AllowedDownloads- view.File.Downloads) } </pre> </td>
+                </tr>
+            }
+
+            if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
+
+                <tr title="The expires in this much time">
+                    <td class="px-2"> Expire Time </td>
+                    <td> <pre> { view.File.Expires.Sub(time.Now()).String() } </pre> </td>
+                </tr>
+            }
+
+            if config.SHOW_DOWNLOAD_EXPIRE_TIME {
+
+                <tr title="The time of expirey (server side)">
+                    <td class="px-2"> Expire Date </td>
+                    <td> <pre> { view.File.Expires.Format(config.EXPIREY_TIME_FORMAT) } </pre> </td>
+                </tr>
+            }
+
+
             <tr title="The file SHA256 digest">
                 <td class="px-2"> SHA256 </td>
                 <td> <pre> { hex.EncodeToString(view.File.Hash) } </pre> </td>

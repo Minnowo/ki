@@ -39,5 +39,7 @@ func main() {
 
 	err := srv.ListenAndServe()
 
+	apiv1.Deinit()
+
 	log.Fatal().Err(err).Msg("Site is dead")
 }

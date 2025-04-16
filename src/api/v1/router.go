@@ -2,16 +2,22 @@ package v1
 
 import (
 	"ki/src/handlers/storage"
+	"time"
 
 	"github.com/gorilla/mux"
 )
 
 type APIV1 struct {
-	fmap storage.FileMap
+	fmap      storage.FileMap
+	fmapDChan chan bool
 }
 
 func (a *APIV1) Init() {
 	a.fmap = storage.NewFileMap()
+	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
+}
+func (a *APIV1) Deinit() {
+	a.fmapDChan <- true
 }
 
 func (a *APIV1) Register(r *mux.Router) {

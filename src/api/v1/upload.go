@@ -49,12 +49,9 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			if err == io.EOF {
 				break
 			}
-			log.Debug().Err(err).Msg("error getting a part")
 			http.Error(w, "error getting a part", http.StatusBadRequest)
 			return
 		}
-
-		log.Info().Str("name", part.FormName()).Msg("got part")
 
 		var ok bool
 
@@ -127,7 +124,6 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			key, err = a.fmap.SaveFile(part, expires, int(downloads), filename, timeoutHelper)
 
 			if err != nil {
-				log.Error().Err(err).Msg("error handling file")
 				http.Error(w, "unknown error while processing file", http.StatusInternalServerError)
 				return
 			}

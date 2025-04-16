@@ -51,11 +51,11 @@ type SafeFileEx struct {
 func (f *SafeFileEx) CleanIfExpired() bool {
 
 	f.RLock()
-	didExpire := f.SafeFile.IsExpired()
+	isExpired := f.SafeFile.IsExpired()
 	wasCleaned := f.wasCleaned
 	f.RUnlock()
 
-	if !didExpire {
+	if !isExpired {
 		return false
 	}
 
@@ -66,6 +66,8 @@ func (f *SafeFileEx) CleanIfExpired() bool {
 	f.Lock()
 
 	if !f.wasCleaned {
+
+		log.Debug().Str("name", f.Name).Msg("expiring file")
 
 		f.wasCleaned = true
 		f.Expires = time.Unix(0, 0)
@@ -121,7 +123,7 @@ func (f *FileMap) RemoveExpired() {
 
 	f.RLock()
 
-	expired := make([]FileID, len(f.files))
+	expired := make([]FileID, 0, len(f.files))
 
 	for key, value := range f.files {
 		if value.CleanIfExpired() {
@@ -134,6 +136,8 @@ func (f *FileMap) RemoveExpired() {
 	if len(expired) <= 0 {
 		return
 	}
+
+	log.Info().Int("count", len(expired)).Msg("removing expired files")
 
 	f.Lock()
 	defer f.Unlock()
