@@ -485,24 +485,9 @@ video {
   box-sizing: border-box
 }
 
-@font-face {
-  font-family: 'MPlus';
-
-  src: url('/lfs/fonts/Mplus1Code-Medium.woff2') format('woff2'),
-             url('/lfs/fonts/Mplus1Code-Medium.ttf')   format('truetype');
-
-  font-weight: normal;
-
-  font-style: normal;
-}
-
 html {
   color: #D4D4D4;
   background-color: #1F1F1F;
-}
-
-body {
-  font-family: "MPlus";
 }
 
 a {
