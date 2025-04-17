@@ -28,7 +28,7 @@ func main() {
 		// Good practice: enforce timeouts for servers you create!
 		WriteTimeout:   15 * time.Second,
 		ReadTimeout:    15 * time.Second,
-		MaxHeaderBytes: 50 * config.KB,
+		MaxHeaderBytes: 2 * config.KB,
 	}
 
 	apiv1 := v1.APIV1{}
