@@ -4,7 +4,6 @@ import (
 	v1 "ki/src/api/v1"
 	"ki/src/assets"
 	"ki/src/config"
-	"ki/src/logging"
 	"net/http"
 	"time"
 
@@ -13,8 +12,6 @@ import (
 )
 
 func main() {
-
-	logging.InitFromEnv()
 
 	r := mux.NewRouter()
 

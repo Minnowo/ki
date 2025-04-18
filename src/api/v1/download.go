@@ -2,6 +2,7 @@ package v1
 
 import (
 	"encoding/hex"
+	"ki/src/api"
 	"ki/src/config"
 	"ki/src/handlers/storage"
 	"ki/src/ui/pages"
@@ -16,14 +17,12 @@ func getFileID(a *APIV1, w http.ResponseWriter, r *http.Request) *storage.FileID
 	vars := mux.Vars(r)
 	hexStr, ok := vars["fileIdHex"]
 	if !ok {
-		http.Error(w, "", http.StatusNotFound)
 		return nil
 	}
 
 	id, err := hex.DecodeString(hexStr)
 
 	if err != nil || len(id) != config.FILE_ID_SIZE {
-		http.Error(w, "", http.StatusNotFound)
 		return nil
 	}
 
@@ -37,14 +36,14 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 	key := getFileID(a, w, r)
 
 	if key == nil {
-		http.Error(w, "404 not found", http.StatusNotFound)
+		api.NotFound(w)
 		return
 	}
 
 	file := a.fmap.GetFile(*key)
 
 	if file == nil {
-		http.Error(w, "404 not found", http.StatusNotFound)
+		api.NotFound(w)
 		return
 	}
 
@@ -60,6 +59,7 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 	key := getFileID(a, w, r)
 
 	if key == nil {
+		api.NotFound(w)
 		return
 	}
 
@@ -73,8 +73,9 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 
 	if err == storage.ErrNeedsAuth {
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
-		http.Error(w, "This file requires a password. Provide basic auth with any username and the password for this file. (The username will be ignored)", http.StatusUnauthorized)
+		api.Done(w, http.StatusUnauthorized, "This file requires a password. Provide basic auth with any username and the password for this file. (The username will be ignored)")
 	} else if err != nil {
 		log.Error().Err(err).Msg("error reading file to client")
+		api.Done(w, http.StatusInternalServerError, "Error reading file")
 	}
 }

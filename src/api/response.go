@@ -1,0 +1,30 @@
+package api
+
+import (
+	"fmt"
+	"io"
+	"ki/src/logging"
+	"net/http"
+)
+
+func Done(w http.ResponseWriter, code int, msg string) {
+	logging.ApiLog.Debug().Int("code", code).Msg(msg)
+	http.Error(w, msg, code)
+}
+
+func Donef(w http.ResponseWriter, code int, msg string, a ...any) {
+	Done(w, code, fmt.Sprintf(msg, a...))
+}
+
+func NotFound(w http.ResponseWriter) {
+	Done(w, http.StatusNotFound, "404 not found")
+}
+
+func Close(r io.ReadCloser, w http.ResponseWriter, code int, msg string) {
+	Done(w, code, msg)
+}
+
+func Closef(r io.ReadCloser, w http.ResponseWriter, code int, msg string, a ...any) {
+	Donef(w, code, msg, a...)
+	r.Close()
+}

@@ -146,7 +146,15 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 	return nil
 }
 
-func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int, ogName string, userPassword string, update func(int)) (*FileID, error) {
+func (f *FileMap) SaveFile(
+	upload SafeFileUpload,
+	r io.Reader,
+	update func(int),
+) (*FileID, error) {
+
+	if err := upload.Valid(); err != nil {
+		return nil, err
+	}
 
 	file, err := os.CreateTemp("", config.FILENAME_PREFIX+"*")
 
@@ -155,7 +163,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	}
 	defer file.Close()
 
-	didUserGivePassword := userPassword != ""
+	didUserGivePassword := upload.Password != ""
 
 	key := make([]byte, f.keySize)
 	rand.Read(key)
@@ -163,12 +171,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	var aesw io.Writer
 
 	if didUserGivePassword {
-
-		if len(userPassword) > crypto.MAX_PASSWORD_LENGTH {
-			return nil, fmt.Errorf("password is to long")
-		}
-
-		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, []byte(userPassword), file)
+		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, []byte(upload.Password), file)
 	} else {
 		aesw, err = crypto.GetStreamEncryptionWriter(key, file)
 	}
@@ -221,7 +224,8 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	var passHash []byte = nil
 
 	if didUserGivePassword {
-		passHash, err = bcrypt.GenerateFromPassword([]byte(userPassword), f.bcryptCost)
+
+		passHash, err = bcrypt.GenerateFromPassword([]byte(upload.Password), f.bcryptCost)
 
 		if err != nil {
 			return nil, err
@@ -249,19 +253,19 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 			Sha256Hash:       sha256Hash.Sum(nil),
 			Sha1Hash:         sha1Hash.Sum(nil),
 			Md5Hash:          md5Hash.Sum(nil),
-			Expires:          expirey,
+			Expires:          time.Now().Add(upload.ExpiresIn),
 			Size:             fileSize,
-			Name:             ogName,
+			Name:             upload.Filename,
 			Downloads:        0,
-			AllowedDownloads: allowedDownloads,
+			AllowedDownloads: upload.AllowedDownloads,
 			UserSetPassword:  didUserGivePassword,
 		},
 	}
 
 	log.Info().
 		Str("name", file.Name()).
-		Str("expires", expirey.String()).
-		Int("allowedDownloads", allowedDownloads).
+		Str("expires", upload.ExpiresIn.String()).
+		Int("allowedDownloads", upload.AllowedDownloads).
 		Int64("size", fileSize).
 		Msg("saved new file")
 

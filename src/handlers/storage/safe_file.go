@@ -2,12 +2,47 @@ package storage
 
 import (
 	"crypto/rand"
+	"fmt"
+	"ki/src/config"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+var (
+	ErrInvalidUpload error = fmt.Errorf("upload is invalid")
+)
+
+type SafeFileUpload struct {
+	ExpiresIn        time.Duration
+	AllowedDownloads int
+	Filename         string
+	Password         string
+}
+
+func (f *SafeFileUpload) Valid() error {
+
+	if f.ExpiresIn.Milliseconds() < time.Minute.Milliseconds() {
+		return fmt.Errorf("%w: expirey time must be at least 1 minute", ErrInvalidUpload)
+	}
+
+	if f.AllowedDownloads <= 0 {
+		return fmt.Errorf("%w: must have at least 1 download", ErrFileExpired)
+	}
+
+	if len(f.Filename) <= 0 {
+		return fmt.Errorf("%w: must have non-empty filename", ErrFileExpired)
+	}
+
+	if len(f.Password) > config.MAX_PASSWORD_LENGTH {
+		return fmt.Errorf("%w: password length must be less than %d", ErrFileExpired, config.MAX_PASSWORD_LENGTH)
+
+	}
+
+	return nil
+}
 
 type SafeFile struct {
 	Sha512Hash       []byte

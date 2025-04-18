@@ -1,14 +1,16 @@
 package v1
 
 import (
-	"fmt"
+	"errors"
 	"io"
+	"ki/src/api"
 	"ki/src/config"
 	"ki/src/handlers/form"
 	"ki/src/handlers/storage"
 	"ki/src/ui/formkeys"
 	"ki/src/ui/pages"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -29,7 +31,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Debug().Err(err).Msg("failed to get multipartReader")
-		http.Error(w, "failed to get a multipart reader", http.StatusBadRequest)
+		api.Done(w, http.StatusBadRequest, "failed to get a multipart reader")
 		return
 	}
 
@@ -37,7 +39,6 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	var hours int32 = -1
 	var minutes int32 = -1
 	var downloads int32 = -1
-	var fileSize int64 = 0
 	var password string = ""
 	var key *storage.FileID = nil
 	var finished bool = false
@@ -45,13 +46,21 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
 	for {
+		// Note that calling 'return' or 'break' in this loop will not close the part.
+		// This is intentional because when the part is closed it will read and discard until the start of the next part.
+		// If for example the user uploads a 50gb file in a field we expect a string.
+		// If we read 50 bytes of that and then close it, it will read and discard the other 50gb.
+		// Instead we abort the connection so the server can ignore the rest of the form.
+		//
+		// This sadly doesn't give the user any reason as to why their upload failed.
+		// They just get a vague message about connection being reset, but this is better than allowing them to waste bandwidth.
 		part, err := multipartReader.NextPart()
 
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			http.Error(w, "error getting a part", http.StatusBadRequest)
+			api.Done(w, http.StatusBadRequest, "error getting a part")
 			return
 		}
 
@@ -62,7 +71,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_EXPIRE_DAYS:
 
 			if days, ok = form.ReadFormInt(part); !ok {
-				http.Error(w, "error reading expire days", http.StatusBadRequest)
+				api.Done(w, http.StatusBadRequest, "error reading expire days")
 				return
 			}
 			break
@@ -70,7 +79,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_EXPIRE_HOURS:
 
 			if hours, ok = form.ReadFormInt(part); !ok {
-				http.Error(w, "error reading expire hours", http.StatusBadRequest)
+				api.Done(w, http.StatusBadRequest, "error reading expire hours")
 				return
 			}
 			break
@@ -78,7 +87,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_EXPIRE_MINUTES:
 
 			if minutes, ok = form.ReadFormInt(part); !ok {
-				http.Error(w, "error reading expire minutes", http.StatusBadRequest)
+				api.Done(w, http.StatusBadRequest, "error reading expire minutes")
 				return
 			}
 			break
@@ -86,7 +95,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS:
 
 			if downloads, ok = form.ReadFormInt(part); !ok {
-				http.Error(w, "error reading expire downloads", http.StatusBadRequest)
+				api.Done(w, http.StatusBadRequest, "error reading expire downloads")
 				return
 			}
 			break
@@ -94,15 +103,12 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_PASSWORD:
 
 			if password, ok = form.ReadFormString(config.MAX_PASSWORD_LENGTH, part); !ok {
-				http.Error(w, "error reading password", http.StatusBadRequest)
+				api.Done(w, http.StatusBadRequest, "error reading password")
 				return
 			}
 
 			if len(password) > config.MAX_PASSWORD_LENGTH {
-				http.Error(w,
-					fmt.Sprintf("password exceeds maximum length of %d", config.MAX_PASSWORD_LENGTH),
-					http.StatusBadRequest,
-				)
+				api.Donef(w, http.StatusBadRequest, "password exceeds maximum length of %d", config.MAX_PASSWORD_LENGTH)
 				return
 			}
 			break
@@ -110,41 +116,49 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		case formkeys.UPLOAD_FORM_FILE:
 
 			if days == -1 || hours == -1 || minutes == -1 || downloads == -1 {
-				http.Error(w, "the file must be the last item in the form", http.StatusBadRequest)
+				api.Donef(w, http.StatusBadRequest, "the file must be the last item in the form")
 				return
 			}
 
-			filename := part.FileName()
-
-			if len(filename) == 0 {
-				http.Error(w, "could not read filename", http.StatusBadRequest)
+			if days < 0 || hours < 0 || minutes < 0 {
+				api.Donef(w, http.StatusBadRequest, "expirey days, hours, and minutes must all be greater than or equal to 0")
 				return
 			}
 
-			log.Info().
-				Int32("days", days).
-				Int32("hours", hours).
-				Int32("minutes", minutes).
-				Int32("downloads", downloads).
-				Str("password", password).
-				Msg("got expirey")
-
-			expires := time.Now().
-				Add(time.Hour * time.Duration(24) * time.Duration(days)).
-				Add(time.Hour * time.Duration(hours)).
-				Add(time.Minute * time.Duration(minutes))
-
-			timeoutHelper := func(n int) {
-				rc.SetReadDeadline(time.Now().Add(time.Second * 15))
-				rc.SetWriteDeadline(time.Now().Add(time.Second * 15))
-				fileSize += int64(n)
+			if downloads < 1 {
+				api.Donef(w, http.StatusBadRequest, "number of downloads must be greater than 0")
+				return
 			}
 
-			key, err = a.fmap.SaveFile(part, expires, int(downloads), filename, password, timeoutHelper)
+			upload := storage.SafeFileUpload{
+				AllowedDownloads: int(downloads),
+				Filename:         strings.TrimSpace(part.FileName()),
+				Password:         password,
+				ExpiresIn: ((24 * time.Hour * time.Duration(days)) +
+					(time.Hour * time.Duration(hours)) +
+					(time.Minute * time.Duration(minutes))),
+			}
+
+			timeoutHelper := func(_ int) {
+
+				// make sure the request never times out if we're reading data
+				deadline := time.Now().Add(time.Second * 15)
+				rc.SetReadDeadline(deadline)
+				rc.SetWriteDeadline(deadline)
+			}
+
+			key, err = a.fmap.SaveFile(upload, part, timeoutHelper)
 
 			if err != nil {
-				log.Error().Err(err).Msg("error processing file")
-				http.Error(w, "error while processing file", http.StatusInternalServerError)
+
+				if errors.Is(err, storage.ErrInvalidUpload) {
+					log.Debug().Err(err).Msg("save file error")
+					api.Donef(w, http.StatusBadRequest, err.Error())
+				} else {
+					log.Error().Err(err).Msg("save file error")
+					api.Donef(w, http.StatusInternalServerError, "error while processing file")
+				}
+
 				return
 			}
 
@@ -153,26 +167,22 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			break
 
 		default:
-			http.Error(w, "got unexpected form part", http.StatusBadRequest)
+			api.Donef(w, http.StatusBadRequest, "got unexpected form part")
 			return
 		}
-
-		part.Close()
 	}
 
 	if !finished {
-		http.Error(w, "unexpected EOF", http.StatusBadRequest)
+		api.Done(w, http.StatusBadRequest, "unexpected EOF")
 		return
 	}
 
-	log.Info().Str("hash", key.Hex()).Msg("got file hash")
 	http.Redirect(w, r, "/download/"+key.Hex(), http.StatusSeeOther)
 
 	stopTime := time.Now()
-	duration := startTime.Sub(stopTime)
 
 	log.Info().
-		Str("time", duration.String()).
-		Int64("size", fileSize).
+		Str("took", stopTime.Sub(startTime).String()).
+		Str("id", key.Hex()).
 		Msg("upload success")
 }

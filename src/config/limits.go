@@ -21,7 +21,7 @@ const MAX_PASSWORD_LENGTH int = 72 // bcrypt max allowed
 
 const FILE_ID_SIZE int = 16
 
-const FILENAME_PREFIX string = ""
+const FILENAME_PREFIX string = "ki_"
 
 const SHOW_DOWNLOAD_EXPIRE_TIME bool = true
 const SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING bool = true

@@ -1,6 +1,8 @@
 package api
 
-import "github.com/gorilla/mux"
+import (
+	"github.com/gorilla/mux"
+)
 
 type API interface {
 	Register(r *mux.Router)

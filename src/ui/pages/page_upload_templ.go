@@ -112,7 +112,7 @@ func PageUpload() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" value=\"1\" min=\"0\" required></td></tr><tr title=\"Require this password to download the file\"><td class=\"px-2\">Password (Optional) </td><td><input type=\"password\" name=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" value=\"1\" min=\"1\" required></td></tr><tr title=\"Require this password to download the file\"><td class=\"px-2\">Password (Optional) </td><td><input type=\"password\" name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
