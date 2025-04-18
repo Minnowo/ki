@@ -6,6 +6,25 @@ import (
 	"io"
 )
 
+type AESKeySize int
+
+const (
+	AES256 AESKeySize = 32
+	AES192 AESKeySize = 24
+	AES128 AESKeySize = 16
+)
+
+func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey, userKey []byte, w io.Writer) (io.Writer, error) {
+
+	key, err := OneTimePad(kSize, serverKey, userKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return GetStreamEncryptionWriter(key, w)
+}
+
 func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 
 	block, err := aes.NewCipher(key)
@@ -21,7 +40,18 @@ func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 	return writer, nil
 }
 
-func GetStreamDecryptionWriter(key []byte, r io.Reader) (io.Reader, error) {
+func GetStreamDecryptionReaderEx(kSize AESKeySize, serverKey, userKey []byte, r io.Reader) (io.Reader, error) {
+
+	key, err := OneTimePad(kSize, serverKey, userKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return GetStreamDecryptionReader(key, r)
+}
+
+func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
 
 	block, err := aes.NewCipher(key)
 

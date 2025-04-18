@@ -38,6 +38,10 @@ templ PageUpload() {
                     <td class="px-2"> Downloads </td>
                     <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="0" required> </td>
                 </tr>
+                <tr title="Expired after this many downloads">
+                    <td class="px-2"> Password (Optional) </td>
+                    <td> <input type="password" name={ formkeys.UPLOAD_FORM_PASSWORD }> </td>
+                </tr>
                 <tr title="Choose the file to upload">
                     <td colspan="2"> 
                         <input class="w-full" type="file" name={ formkeys.UPLOAD_FORM_FILE } required>

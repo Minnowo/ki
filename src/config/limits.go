@@ -1,5 +1,7 @@
 package config
 
+import "ki/src/handlers/crypto"
+
 const (
 	_  = iota //ignore first value by assigning to blank identifier
 	KB = 1 << (10 * iota)
@@ -14,14 +16,8 @@ const (
 
 const MAX_UPLOAD_SIZE int64 = 8000 * MB
 
-type AESKeySize int
-
-const (
-	AES256 AESKeySize = 32
-	AES192 AESKeySize = 24
-	AES128 AESKeySize = 16
-)
-const AES_KEY_SIZE AESKeySize = AES256
+const AES_KEY_SIZE crypto.AESKeySize = crypto.AES256
+const MAX_PASSWORD_LENGTH int = 72 // bcrypt max allowed
 
 const FILE_ID_SIZE int = 16
 

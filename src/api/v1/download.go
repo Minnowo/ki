@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 )
 
 func getFileID(a *APIV1, w http.ResponseWriter, r *http.Request) *storage.FileID {
@@ -61,5 +62,18 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.fmap.ReadFile(w, *key)
+	_, password, ok := r.BasicAuth()
+
+	if !ok {
+		password = ""
+	}
+
+	err := a.fmap.ReadFile(w, *key, password)
+
+	if err == storage.ErrNeedsAuth {
+		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+		http.Error(w, "This file requires a password. Provide basic auth with any username and the password for this file. (The username will be ignored)", http.StatusUnauthorized)
+	} else if err != nil {
+		log.Error().Err(err).Msg("error reading file to client")
+	}
 }

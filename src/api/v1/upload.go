@@ -37,6 +37,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	var minutes int32 = -1
 	var downloads int32 = -1
 	var fileSize int64 = 0
+	var password string = ""
 	var key *storage.FileID = nil
 	var finished bool = false
 
@@ -89,6 +90,14 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			}
 			break
 
+		case formkeys.UPLOAD_FORM_PASSWORD:
+
+			if password, ok = form.ReadFormString(config.MAX_PASSWORD_LENGTH, part); !ok {
+				http.Error(w, "error reading password", http.StatusBadRequest)
+				return
+			}
+			break
+
 		case formkeys.UPLOAD_FORM_FILE:
 
 			if days == -1 || hours == -1 || minutes == -1 || downloads == -1 {
@@ -108,6 +117,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				Int32("hours", hours).
 				Int32("minutes", minutes).
 				Int32("downloads", downloads).
+				Str("password", password).
 				Msg("got expirey")
 
 			expires := time.Now().
@@ -121,9 +131,10 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				fileSize += int64(n)
 			}
 
-			key, err = a.fmap.SaveFile(part, expires, int(downloads), filename, timeoutHelper)
+			key, err = a.fmap.SaveFile(part, expires, int(downloads), filename, password, timeoutHelper)
 
 			if err != nil {
+				log.Error().Err(err).Msg("error processing file")
 				http.Error(w, "unknown error while processing file", http.StatusInternalServerError)
 				return
 			}

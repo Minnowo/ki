@@ -76,9 +76,18 @@ templ checksumInformation(view *PageDownloadView ){
 templ otherDownloadOptions(view *PageDownloadView, url string ){ 
 
     {{
-        dl      := view.Origin + url
-        curlCmd := fmt.Sprintf("curl %s -O", dl)
-        wgetCmd := fmt.Sprintf("wget %s", dl)
+        dl := view.Origin + url
+
+        var curlCmd string
+        var wgetCmd string
+
+        if view.File.UserSetPassword {
+            curlCmd = fmt.Sprintf("curl %s --user 0 -O", dl)
+            wgetCmd = fmt.Sprintf("wget %s --user=0 --ask-password", dl)
+        } else {
+            curlCmd = fmt.Sprintf("curl %s -O", dl)
+            wgetCmd = fmt.Sprintf("wget %s", dl)
+        }
     }}
 
     <br/>
@@ -111,9 +120,20 @@ templ PageDownload( view *PageDownloadView) {
         <br/>
 
         <h1 title="Direct download">
-            <a href={ templ.SafeURL(ddl) }> Download </a>
+            <a href={ templ.SafeURL(ddl) } target="_blank" rel="noopener noreferrer">
+                Download
+            </a>
         </h1>
-        <h3 title="File identifier">File { idHex } </h3>
+        <h3 title="File identifier">
+
+                File { idHex }
+
+                if view.File.UserSetPassword {
+                    <span title="This file requires a password to download. Provide basic auth using any username with the password to the file. (username will be ignored)">
+                    (requires password)
+                    </span>
+                }
+        </h3>
 
         <pre class="The file size">
             { str.PrettyByteSize64(view.File.Size) }

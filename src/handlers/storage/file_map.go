@@ -16,7 +16,10 @@ import (
 	"ki/src/handlers/crypto"
 
 	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrNeedsAuth error = fmt.Errorf("needs password to download")
 
 type SafeFile struct {
 	Sha512Hash       []byte
@@ -28,6 +31,7 @@ type SafeFile struct {
 	AllowedDownloads int
 	Downloads        int
 	Name             string
+	UserSetPassword  bool
 }
 
 func (f *SafeFile) IsExpired() bool {
@@ -49,15 +53,17 @@ func (f *SafeFile) Copy() *SafeFile {
 	sf.AllowedDownloads = f.AllowedDownloads
 	sf.Downloads = f.Downloads
 	sf.Name = f.Name
+	sf.UserSetPassword = f.UserSetPassword
 	return &sf
 }
 
 type SafeFileEx struct {
 	SafeFile
 	sync.RWMutex
-	key        []byte
-	file       *os.File
-	wasCleaned bool
+	file             *os.File
+	key              []byte
+	userPasswordHash []byte
+	wasCleaned       bool
 }
 
 func (f *SafeFileEx) CleanIfExpired() bool {
@@ -101,13 +107,17 @@ func (f *SafeFileEx) CleanIfExpired() bool {
 }
 
 type FileMap struct {
-	files map[FileID]*SafeFileEx
+	bcryptCost int
+	keySize    crypto.AESKeySize
+	files      map[FileID]*SafeFileEx
 	sync.RWMutex
 }
 
-func NewFileMap() FileMap {
+func NewFileMap(keySize crypto.AESKeySize, bcryptCost int) FileMap {
 	return FileMap{
-		files: make(map[FileID]*SafeFileEx),
+		files:      make(map[FileID]*SafeFileEx),
+		keySize:    keySize,
+		bcryptCost: bcryptCost,
 	}
 }
 
@@ -164,7 +174,7 @@ func (f *FileMap) RemoveExpired() {
 	}
 }
 
-func (f *FileMap) ReadFile(w io.Writer, key FileID) error {
+func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 
 	file, ok := f.get(key)
 
@@ -175,6 +185,17 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID) error {
 	if file.CleanIfExpired() {
 		f.remove(key)
 		return fmt.Errorf("expired")
+	}
+
+	if file.UserSetPassword {
+
+		if err := bcrypt.CompareHashAndPassword(file.userPasswordHash, []byte(password)); err != nil {
+
+			if err != bcrypt.ErrMismatchedHashAndPassword {
+				return err
+			}
+			return ErrNeedsAuth
+		}
 	}
 
 	file.Lock()
@@ -188,7 +209,14 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID) error {
 		return fmt.Errorf("file error")
 	}
 
-	aesr, err := crypto.GetStreamDecryptionWriter(file.key, file.file)
+	var aesr io.Reader
+	var err error
+
+	if file.UserSetPassword {
+		aesr, err = crypto.GetStreamDecryptionReaderEx(f.keySize, file.key, []byte(password), file.file)
+	} else {
+		aesr, err = crypto.GetStreamDecryptionReader(file.key, file.file)
+	}
 
 	if err != nil {
 		return err
@@ -208,10 +236,7 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID) error {
 	return nil
 }
 
-func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int, ogName string, update func(int)) (*FileID, error) {
-
-	key := make([]byte, config.AES_KEY_SIZE)
-	rand.Read(key)
+func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int, ogName string, userPassword string, update func(int)) (*FileID, error) {
 
 	file, err := os.CreateTemp("", config.FILENAME_PREFIX+"*")
 
@@ -219,7 +244,23 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		return nil, err
 	}
 
-	aesw, err := crypto.GetStreamEncryptionWriter(key, file)
+	didUserGivePassword := userPassword != ""
+
+	key := make([]byte, f.keySize)
+	rand.Read(key)
+
+	var aesw io.Writer
+
+	if didUserGivePassword {
+
+		if len(userPassword) > crypto.MAX_PASSWORD_LENGTH {
+			return nil, fmt.Errorf("password is to long")
+		}
+
+		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, []byte(userPassword), file)
+	} else {
+		aesw, err = crypto.GetStreamEncryptionWriter(key, file)
+	}
 
 	if err != nil {
 		return nil, err
@@ -266,6 +307,16 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		}
 	}
 
+	var passHash []byte = nil
+
+	if didUserGivePassword {
+		passHash, err = bcrypt.GenerateFromPassword([]byte(userPassword), f.bcryptCost)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	f.Lock()
 	defer f.Unlock()
 
@@ -279,8 +330,9 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	}
 
 	f.files[fileId] = &SafeFileEx{
-		key:  key,
-		file: file,
+		userPasswordHash: passHash,
+		key:              key,
+		file:             file,
 		SafeFile: SafeFile{
 			Sha512Hash:       sha512Hash.Sum(nil),
 			Sha256Hash:       sha256Hash.Sum(nil),
@@ -291,6 +343,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 			Name:             ogName,
 			Downloads:        0,
 			AllowedDownloads: allowedDownloads,
+			UserSetPassword:  didUserGivePassword,
 		},
 	}
 

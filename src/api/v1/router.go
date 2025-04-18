@@ -1,10 +1,12 @@
 package v1
 
 import (
+	"ki/src/config"
 	"ki/src/handlers/storage"
 	"time"
 
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type APIV1 struct {
@@ -13,7 +15,7 @@ type APIV1 struct {
 }
 
 func (a *APIV1) Init() {
-	a.fmap = storage.NewFileMap()
+	a.fmap = storage.NewFileMap(config.AES_KEY_SIZE, bcrypt.DefaultCost)
 	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
 }
 func (a *APIV1) Deinit() {

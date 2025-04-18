@@ -112,20 +112,33 @@ func PageUpload() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" value=\"1\" min=\"0\" required></td></tr><tr title=\"Choose the file to upload\"><td colspan=\"2\"><input class=\"w-full\" type=\"file\" name=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" value=\"1\" min=\"0\" required></td></tr><tr title=\"Expired after this many downloads\"><td class=\"px-2\">Password (Optional) </td><td><input type=\"password\" name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_FILE)
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_PASSWORD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 43, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 43, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" required></td></tr><tr title=\"Upload the selected file\"><td colspan=\"2\"><input class=\"w-full\" type=\"submit\" value=\"Upload\"></td></tr></tbody></table></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"></td></tr><tr title=\"Choose the file to upload\"><td colspan=\"2\"><input class=\"w-full\" type=\"file\" name=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_FILE)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 47, Col: 90}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" required></td></tr><tr title=\"Upload the selected file\"><td colspan=\"2\"><input class=\"w-full\" type=\"submit\" value=\"Upload\"></td></tr></tbody></table></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
