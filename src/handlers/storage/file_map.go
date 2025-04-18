@@ -1,8 +1,11 @@
 package storage
 
 import (
+	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"ki/src/config"
@@ -16,7 +19,10 @@ import (
 )
 
 type SafeFile struct {
-	Hash             []byte
+	Sha512Hash       []byte
+	Sha256Hash       []byte
+	Sha1Hash         []byte
+	Md5Hash          []byte
 	Size             int64
 	Expires          time.Time
 	AllowedDownloads int
@@ -30,8 +36,14 @@ func (f *SafeFile) IsExpired() bool {
 
 func (f *SafeFile) Copy() *SafeFile {
 	var sf SafeFile
-	sf.Hash = make([]byte, len(f.Hash))
-	copy(sf.Hash, f.Hash)
+	sf.Sha512Hash = make([]byte, len(f.Sha512Hash))
+	copy(sf.Sha512Hash, f.Sha512Hash)
+	sf.Sha256Hash = make([]byte, len(f.Sha256Hash))
+	copy(sf.Sha256Hash, f.Sha256Hash)
+	sf.Sha1Hash = make([]byte, len(f.Sha1Hash))
+	copy(sf.Sha1Hash, f.Sha1Hash)
+	sf.Md5Hash = make([]byte, len(f.Md5Hash))
+	copy(sf.Md5Hash, f.Md5Hash)
 	sf.Size = f.Size
 	sf.Expires = f.Expires
 	sf.AllowedDownloads = f.AllowedDownloads
@@ -213,7 +225,10 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		return nil, err
 	}
 
-	hash := sha256.New()
+	sha512Hash := sha512.New()
+	sha256Hash := sha256.New()
+	sha1Hash := sha1.New()
+	md5Hash := md5.New()
 
 	fileSize := int64(0)
 	buffer := make([]byte, 4*config.KB)
@@ -224,7 +239,10 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		if n > 0 {
 			fileSize += int64(n)
 			aesw.Write(buffer[0:n])
-			hash.Write(buffer[0:n])
+			sha512Hash.Write(buffer[0:n])
+			sha256Hash.Write(buffer[0:n])
+			sha1Hash.Write(buffer[0:n])
+			md5Hash.Write(buffer[0:n])
 			if update != nil {
 				update(n)
 			}
@@ -248,9 +266,6 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		}
 	}
 
-	var sha [sha256.Size]byte
-	copy(sha[:], hash.Sum(nil))
-
 	f.Lock()
 	defer f.Unlock()
 
@@ -267,7 +282,10 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		key:  key,
 		file: file,
 		SafeFile: SafeFile{
-			Hash:             sha[:],
+			Sha512Hash:       sha512Hash.Sum(nil),
+			Sha256Hash:       sha256Hash.Sum(nil),
+			Sha1Hash:         sha1Hash.Sum(nil),
+			Md5Hash:          md5Hash.Sum(nil),
 			Expires:          expirey,
 			Size:             fileSize,
 			Name:             ogName,

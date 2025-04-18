@@ -1,5 +1,7 @@
 package pages
 
+import "fmt"
+
 import(
     "ki/src/handlers/str"
     "ki/src/config"
@@ -9,8 +11,91 @@ import(
 )
 
 
-templ downloadUsingCurl( url string ){ 
+templ checksumInformation(view *PageDownloadView ){ 
 
+    {{
+        sha512 := hex.EncodeToString(view.File.Sha512Hash)
+        sha256 := hex.EncodeToString(view.File.Sha256Hash)
+        sha1   := hex.EncodeToString(view.File.Sha1Hash)
+        md5    := hex.EncodeToString(view.File.Md5Hash)
+    }}
+    <br/>
+    <h1>Checksums</h1>
+    <br/>
+        
+    <table class="w-full table-padded">
+    <tbody class="text-right">
+
+        <tr title={ sha512 }>
+            <td class="px-2"> SHA512 </td>
+            <td class="w-full">
+                <pre>
+                <textarea class="w-full whitespace-nowrap" rows="1">
+                    { sha512 }
+                </textarea>
+                </pre>
+            </td>
+        </tr>
+
+        <tr title={ sha256 }>
+            <td class="px-2"> SHA256 </td>
+            <td class="w-full">
+                <pre> 
+                <textarea class="w-full whitespace-nowrap" rows="1">
+                    { sha256 }
+                </textarea>
+                </pre>
+            </td>
+        </tr>
+
+        <tr title={ sha1 }>
+            <td class="px-2"> SHA1 </td>
+            <td class="w-full">
+                <pre> 
+                <textarea class="w-full whitespace-nowrap" rows="1">
+                    { sha1 }
+                </textarea>
+                </pre>
+            </td>
+        </tr>
+
+        <tr title={ md5 }>
+            <td class="px-2"> MD5 </td>
+            <td class="w-full">
+                <pre> 
+                <textarea class="w-full whitespace-nowrap" rows="1">
+                    { md5 }
+                </textarea>
+                </pre>
+            </td>
+        </tr>
+
+    </tbody>
+    </table>
+}
+templ otherDownloadOptions(view *PageDownloadView, url string ){ 
+
+    {{
+        dl      := view.Origin + url
+        curlCmd := fmt.Sprintf("curl %s -O", dl)
+        wgetCmd := fmt.Sprintf("wget %s", dl)
+    }}
+
+    <br/>
+    <h1>Other downloads</h1>
+    <br/>
+        
+    <pre class="my-2" title="Curl command to download the file">
+        <textarea class="w-full whitespace-nowrap" rows="1">
+            { curlCmd }
+        </textarea>
+    </pre>
+
+    <pre class="my-2" title="wget command to download the file">
+        <textarea class="w-full whitespace-nowrap" rows="1">
+            { wgetCmd }
+        </textarea>
+    </pre>
 }
 
 
@@ -24,61 +109,68 @@ templ PageDownload( view *PageDownloadView) {
         }}
 
         <br/>
-        <h1>Download a file</h1>
-        <h3>File size is { str.PrettyByteSize64(view.File.Size) } </h3>
+
+        <h1 title="Direct download">
+            <a href={ templ.SafeURL(ddl) }> Download </a>
+        </h1>
+        <h3 title="File identifier">File { idHex } </h3>
+
+        <pre class="The file size">
+            { str.PrettyByteSize64(view.File.Size) }
+        </pre>
+
         <br/>
 
-        <table class="table-auto table-padded">
+        <pre class="whitespace-pre-wrap" title="Original filename"> 
+            { view.File.Name }
+        </pre> 
 
-        <tbody class="text-right">
+        <br/>
 
-            <tr title="The file identifier">
-                <td class="px-2"> ID </td>
-                <td> <pre> { idHex } </pre> </td>
-            </tr>
-            <tr title="The filename">
-                <td class="px-2"> Name </td>
-                <td> <pre> { view.File.Name } </pre> </td>
-            </tr>
+        <table class="table-padded">
+        <tbody>
 
             if config.SHOW_DOWNLOADS_REMAINING {
 
                 <tr title="The number of downloads until expirey">
-                    <td class="px-2"> Downloads </td>
-                    <td> <pre> { strconv.Itoa(view.File.AllowedDownloads- view.File.Downloads) } </pre> </td>
+                    <td class="px-2 text-right"> Remaining </td>
+                    <td class="px-2 ">
+                        <pre> 
+                            { strconv.Itoa(view.File.AllowedDownloads- view.File.Downloads) }
+                        </pre>
+                    </td>
                 </tr>
             }
 
             if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
 
                 <tr title="The expires in this much time">
-                    <td class="px-2"> Expire Time </td>
-                    <td> <pre> { view.File.Expires.Sub(time.Now()).String() } </pre> </td>
+                    <td class="px-2 text-right"> Expires in </td>
+                    <td class="px-2 ">
+                        <pre> 
+                            { view.File.Expires.Sub(time.Now()).String() }
+                        </pre>
+                    </td>
                 </tr>
             }
 
             if config.SHOW_DOWNLOAD_EXPIRE_TIME {
 
                 <tr title="The time of expirey (server side)">
-                    <td class="px-2"> Expire Date </td>
-                    <td> <pre> { view.File.Expires.Format(config.EXPIREY_TIME_FORMAT) } </pre> </td>
+                    <td class="px-2 text-right"> Expires </td>
+                    <td class="px-2 ">
+                        <pre> 
+                            { view.File.Expires.Format(config.EXPIREY_TIME_FORMAT) }
+                        </pre>
+                    </td>
                 </tr>
             }
 
-
-            <tr title="The file SHA256 digest">
-                <td class="px-2"> SHA256 </td>
-                <td> <pre> { hex.EncodeToString(view.File.Hash) } </pre> </td>
-            </tr>
-
-            <tr title="File download link">
-                <td colspan="2"> 
-                    <a href={ templ.SafeURL(ddl) }> Download </a>
-                </td>
-            </tr>
-
         </tbody>
-
         </table>
+
+        @otherDownloadOptions(view, ddl)
+
+        @checksumInformation(view)
     }
 }

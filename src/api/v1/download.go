@@ -47,8 +47,9 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pages.PageDownload(&pages.PageDownloadView{
-		File:   file,
-		FileID: *key,
+		BaseView: pages.NewBaseViewFromReq(r),
+		File:     file,
+		FileID:   *key,
 	}).Render(r.Context(), w)
 }
 

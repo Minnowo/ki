@@ -12,7 +12,7 @@ const (
 	YB
 )
 
-const MAX_UPLOAD_SIZE int64 = 80 * MB
+const MAX_UPLOAD_SIZE int64 = 8000 * MB
 
 type AESKeySize int
 
@@ -32,3 +32,5 @@ const SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING bool = true
 const SHOW_DOWNLOADS_REMAINING bool = true
 
 const EXPIREY_TIME_FORMAT string = "2006-01-02 15:04:05 MST"
+
+const HOST string = "localhost"

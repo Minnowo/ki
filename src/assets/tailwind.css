@@ -59,6 +59,15 @@
              bg-c-black      text-c-white      placeholder-c-green      border-c-yellow  focus:border-c-red
     }
 
+    .table-bordered {
+        @apply border border-c-l-black border-collapse border-solid;
+    }
+
+    .table-bordered th,
+    .table-bordered td {
+        @apply border border-c-l-black border-solid;
+    }
+
     .table-padded th,
     .table-padded td {
         @apply py-1;
