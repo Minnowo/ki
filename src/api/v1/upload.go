@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"io"
 	"ki/src/config"
 	"ki/src/handlers/form"
@@ -96,6 +97,14 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "error reading password", http.StatusBadRequest)
 				return
 			}
+
+			if len(password) > config.MAX_PASSWORD_LENGTH {
+				http.Error(w,
+					fmt.Sprintf("password exceeds maximum length of %d", config.MAX_PASSWORD_LENGTH),
+					http.StatusBadRequest,
+				)
+				return
+			}
 			break
 
 		case formkeys.UPLOAD_FORM_FILE:
@@ -135,7 +144,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
 			if err != nil {
 				log.Error().Err(err).Msg("error processing file")
-				http.Error(w, "unknown error while processing file", http.StatusInternalServerError)
+				http.Error(w, "error while processing file", http.StatusInternalServerError)
 				return
 			}
 
@@ -144,7 +153,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			break
 
 		default:
-			http.Error(w, "error getting a part", http.StatusBadRequest)
+			http.Error(w, "got unexpected form part", http.StatusBadRequest)
 			return
 		}
 

@@ -19,92 +19,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var ErrNeedsAuth error = fmt.Errorf("needs password to download")
-
-type SafeFile struct {
-	Sha512Hash       []byte
-	Sha256Hash       []byte
-	Sha1Hash         []byte
-	Md5Hash          []byte
-	Size             int64
-	Expires          time.Time
-	AllowedDownloads int
-	Downloads        int
-	Name             string
-	UserSetPassword  bool
-}
-
-func (f *SafeFile) IsExpired() bool {
-	return time.Now().After(f.Expires) || f.Downloads >= f.AllowedDownloads
-}
-
-func (f *SafeFile) Copy() *SafeFile {
-	var sf SafeFile
-	sf.Sha512Hash = make([]byte, len(f.Sha512Hash))
-	copy(sf.Sha512Hash, f.Sha512Hash)
-	sf.Sha256Hash = make([]byte, len(f.Sha256Hash))
-	copy(sf.Sha256Hash, f.Sha256Hash)
-	sf.Sha1Hash = make([]byte, len(f.Sha1Hash))
-	copy(sf.Sha1Hash, f.Sha1Hash)
-	sf.Md5Hash = make([]byte, len(f.Md5Hash))
-	copy(sf.Md5Hash, f.Md5Hash)
-	sf.Size = f.Size
-	sf.Expires = f.Expires
-	sf.AllowedDownloads = f.AllowedDownloads
-	sf.Downloads = f.Downloads
-	sf.Name = f.Name
-	sf.UserSetPassword = f.UserSetPassword
-	return &sf
-}
-
-type SafeFileEx struct {
-	SafeFile
-	sync.RWMutex
-	file             *os.File
-	key              []byte
-	userPasswordHash []byte
-	wasCleaned       bool
-}
-
-func (f *SafeFileEx) CleanIfExpired() bool {
-
-	f.RLock()
-	isExpired := f.SafeFile.IsExpired()
-	wasCleaned := f.wasCleaned
-	f.RUnlock()
-
-	if !isExpired {
-		return false
-	}
-
-	if wasCleaned {
-		return true
-	}
-
-	f.Lock()
-
-	if !f.wasCleaned {
-
-		log.Debug().Str("name", f.Name).Msg("expiring file")
-
-		f.wasCleaned = true
-		f.Expires = time.Unix(0, 0)
-
-		if f.key != nil {
-			rand.Read(f.key)
-		}
-
-		if f.file != nil {
-			f.file.Close()
-			os.Remove(f.file.Name())
-			f.file = nil
-		}
-	}
-
-	f.Unlock()
-
-	return true
-}
+var (
+	ErrNeedsAuth   error = fmt.Errorf("needs password to download")
+	ErrFileExpired error = fmt.Errorf("file has expired")
+)
 
 type FileMap struct {
 	bcryptCost int
@@ -133,8 +51,6 @@ func (f *FileMap) GetFile(key FileID) *SafeFile {
 	defer v.RUnlock()
 
 	if v.IsExpired() {
-		log.Info().Str("name", v.Name).Msg("file has expired")
-		f.remove(key)
 		return nil
 	}
 
@@ -148,7 +64,7 @@ func (f *FileMap) RemoveExpired() {
 	expired := make([]FileID, 0, len(f.files))
 
 	for key, value := range f.files {
-		if value.CleanIfExpired() {
+		if value.CleanIfExpired() && value.Clean() {
 			expired = append(expired, key)
 		}
 	}
@@ -178,13 +94,8 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 
 	file, ok := f.get(key)
 
-	if !ok {
-		return fmt.Errorf("not found")
-	}
-
-	if file.CleanIfExpired() {
-		f.remove(key)
-		return fmt.Errorf("expired")
+	if !ok || file.CleanIfExpired() {
+		return ErrFileExpired
 	}
 
 	if file.UserSetPassword {
@@ -194,35 +105,34 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 			if err != bcrypt.ErrMismatchedHashAndPassword {
 				return err
 			}
+
 			return ErrNeedsAuth
 		}
 	}
 
-	file.Lock()
-	defer file.Unlock()
+	fileHandle, err := file.NewFileHandle()
 
-	if file.IsExpired() {
-		return fmt.Errorf("expired")
+	if err != nil {
+		return err
 	}
-
-	if _, err := file.file.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("file error")
-	}
+	defer fileHandle.Close()
 
 	var aesr io.Reader
-	var err error
 
 	if file.UserSetPassword {
-		aesr, err = crypto.GetStreamDecryptionReaderEx(f.keySize, file.key, []byte(password), file.file)
+		aesr, err = crypto.GetStreamDecryptionReaderEx(f.keySize, file.key, []byte(password), fileHandle)
 	} else {
-		aesr, err = crypto.GetStreamDecryptionReader(file.key, file.file)
+		aesr, err = crypto.GetStreamDecryptionReader(file.key, fileHandle)
 	}
 
 	if err != nil {
 		return err
 	}
 
-	file.Downloads += 1
+	if !file.StartDownload() {
+		return ErrFileExpired
+	}
+	defer file.StopDownload()
 
 	n, err := io.Copy(w, aesr)
 
@@ -243,6 +153,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	didUserGivePassword := userPassword != ""
 
@@ -272,7 +183,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	md5Hash := md5.New()
 
 	fileSize := int64(0)
-	buffer := make([]byte, 4*config.KB)
+	buffer := make([]byte, 4*config.KB) // seems to be the buffer size of the http request
 	for {
 
 		n, err := r.Read(buffer)
@@ -332,7 +243,7 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 	f.files[fileId] = &SafeFileEx{
 		userPasswordHash: passHash,
 		key:              key,
-		file:             file,
+		filePath:         file.Name(),
 		SafeFile: SafeFile{
 			Sha512Hash:       sha512Hash.Sum(nil),
 			Sha256Hash:       sha256Hash.Sum(nil),
@@ -355,12 +266,6 @@ func (f *FileMap) SaveFile(r io.Reader, expirey time.Time, allowedDownloads int,
 		Msg("saved new file")
 
 	return &fileId, nil
-}
-
-func (f *FileMap) remove(key FileID) {
-	f.Lock()
-	defer f.Unlock()
-	delete(f.files, key)
 }
 
 func (f *FileMap) get(key FileID) (*SafeFileEx, bool) {

@@ -37,13 +37,14 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 	key := getFileID(a, w, r)
 
 	if key == nil {
+		http.Error(w, "404 not found", http.StatusNotFound)
 		return
 	}
 
 	file := a.fmap.GetFile(*key)
 
 	if file == nil {
-		http.Error(w, "", http.StatusNotFound)
+		http.Error(w, "404 not found", http.StatusNotFound)
 		return
 	}
 
