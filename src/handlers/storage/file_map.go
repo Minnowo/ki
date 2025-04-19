@@ -25,10 +25,11 @@ var (
 )
 
 type FileMap struct {
+	TempDir    string
 	bcryptCost int
 	keySize    crypto.AESKeySize
 	files      map[FileID]*SafeFileEx
-	sync.RWMutex
+	l          sync.RWMutex
 }
 
 func NewFileMap(keySize crypto.AESKeySize, bcryptCost int) FileMap {
@@ -59,7 +60,7 @@ func (f *FileMap) GetFile(key FileID) *SafeFile {
 
 func (f *FileMap) RemoveExpired() {
 
-	f.RLock()
+	f.l.RLock()
 
 	expired := make([]FileID, 0, len(f.files))
 
@@ -69,7 +70,7 @@ func (f *FileMap) RemoveExpired() {
 		}
 	}
 
-	f.RUnlock()
+	f.l.RUnlock()
 
 	if len(expired) <= 0 {
 		return
@@ -77,8 +78,8 @@ func (f *FileMap) RemoveExpired() {
 
 	log.Info().Int("count", len(expired)).Msg("removing expired files")
 
-	f.Lock()
-	defer f.Unlock()
+	f.l.Lock()
+	defer f.l.Unlock()
 
 	for _, key := range expired {
 
@@ -156,7 +157,7 @@ func (f *FileMap) SaveFile(
 		return nil, err
 	}
 
-	file, err := os.CreateTemp("", config.FILENAME_PREFIX+"*")
+	file, err := os.CreateTemp(f.TempDir, config.FILENAME_PREFIX+"*")
 
 	if err != nil {
 		return nil, err
@@ -232,8 +233,8 @@ func (f *FileMap) SaveFile(
 		}
 	}
 
-	f.Lock()
-	defer f.Unlock()
+	f.l.Lock()
+	defer f.l.Unlock()
 
 	var fileId FileID
 	for {
@@ -273,8 +274,8 @@ func (f *FileMap) SaveFile(
 }
 
 func (f *FileMap) get(key FileID) (*SafeFileEx, bool) {
-	f.RLock()
-	defer f.RUnlock()
+	f.l.RLock()
+	defer f.l.RUnlock()
 	v, ok := f.files[key]
 	return v, ok
 }

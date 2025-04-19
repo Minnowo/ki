@@ -47,3 +47,5 @@ func init() {
 	// all api response calls
 	ApiLog = initLogger("API_LOG", zerolog.DebugLevel)
 }
+
+func Init() {}

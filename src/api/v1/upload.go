@@ -153,7 +153,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
 				if errors.Is(err, storage.ErrInvalidUpload) {
 					log.Debug().Err(err).Msg("save file error")
-					api.Donef(w, http.StatusBadRequest, err.Error())
+					api.Done(w, http.StatusBadRequest, err.Error())
 				} else {
 					log.Error().Err(err).Msg("save file error")
 					api.Donef(w, http.StatusInternalServerError, "error while processing file")

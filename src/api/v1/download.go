@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func getFileID(a *APIV1, w http.ResponseWriter, r *http.Request) *storage.FileID {
+func getFileID(r *http.Request) *storage.FileID {
 
 	vars := mux.Vars(r)
 	hexStr, ok := vars["fileIdHex"]
@@ -33,7 +33,7 @@ func getFileID(a *APIV1, w http.ResponseWriter, r *http.Request) *storage.FileID
 
 func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 
-	key := getFileID(a, w, r)
+	key := getFileID(r)
 
 	if key == nil {
 		api.NotFound(w)
@@ -56,7 +56,7 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 
 func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 
-	key := getFileID(a, w, r)
+	key := getFileID(r)
 
 	if key == nil {
 		api.NotFound(w)

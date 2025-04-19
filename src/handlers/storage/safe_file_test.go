@@ -4,18 +4,17 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSafeFileDownloadExpirey(t *testing.T) {
+	assert := assert.New(t)
 
 	tempDir := t.TempDir()
 	tempFile, err := os.CreateTemp(tempDir, "*")
 
-	if err != nil {
-		t.Error("could not create temp file")
-		t.FailNow()
-		return
-	}
+	assert.Nil(err)
 	defer tempFile.Close()
 
 	file := SafeFileEx{
@@ -28,46 +27,24 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 		}}
 
 	// has 1 download remaining
-	if file.IsExpired() {
-		t.Error("expired before downloading anything")
-		t.Fail()
-		return
-	}
+	assert.False(file.IsExpired(), "expired before downloading anything")
 
 	// should use the download
 	file.StartDownload()
 
-	if file.activeDownloads != 1 {
-		t.Error("expected 1 active download")
-		t.Fail()
-		return
-	}
+	assert.Equal(file.activeDownloads, 1, "expected 1 active download")
 
 	// should be expired now
-	if !file.IsExpired() || !file.CleanIfExpired() {
-		t.Error("expected to be expired")
-		t.Fail()
-		return
-	}
+	assert.True(file.IsExpired(), "expected to be expired")
+	assert.True(file.CleanIfExpired(), "expected to be expired")
 
 	// shouldn't be cleaned yet
-	if file.Clean() || file.wasCleaned {
-		t.Error("shouldn't be clean because still downloading")
-		t.Fail()
-		return
-	}
+	assert.False(file.Clean(), "shouldn't be clean because still downloading")
+	assert.False(file.wasCleaned, "shouldn't be clean because still downloading")
 
 	file.StopDownload()
 
-	if file.activeDownloads != 0 {
-		t.Error("expected 0 active download")
-		t.Fail()
-		return
-	}
+	assert.Equal(file.activeDownloads, 0, "expected 0 active download")
 
-	if !file.Clean() {
-		t.Error("should be able to clean now")
-		t.Fail()
-		return
-	}
+	assert.True(file.Clean(), "should be able to clean now")
 }
