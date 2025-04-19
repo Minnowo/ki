@@ -3,7 +3,9 @@ package storage
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	"ki/src/config"
+	"ki/src/handlers/crypto"
 	"os"
 	"sync"
 	"time"
@@ -104,37 +106,69 @@ type SafeFileEx struct {
 func (f *SafeFileEx) IsExpiredSync() bool {
 	f.RLock()
 	defer f.RUnlock()
-	return time.Now().After(f.Expires) || f.Downloads >= f.AllowedDownloads
+	return f.IsExpired()
+}
+
+type DownloadData struct {
+	Reader io.Reader
+	File   *os.File
 }
 
 // if true a new download has been counted.
 // returns false if the file is expired.
-func (f *SafeFileEx) StartDownload() bool {
+func (f *SafeFileEx) StartDownload(password string) (*DownloadData, error) {
 
 	f.Lock()
 	defer f.Unlock()
 
-	if f.IsExpired() {
-		return false
+	if f.IsExpired() || f.Cleaned() {
+		return nil, ErrFileExpired
 	}
-	log.Debug().Msg("starting download")
+
+	fileHandle, err := os.Open(f.filePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var aesr io.Reader
+
+	if f.UserSetPassword {
+		aesr, err = crypto.GetStreamDecryptionReaderEx(f.key, []byte(password), fileHandle)
+	} else {
+		aesr, err = crypto.GetStreamDecryptionReader(f.key, fileHandle)
+	}
+
+	if err != nil {
+		fileHandle.Close()
+		return nil, err
+	}
+
 	f.activeDownloads += 1
 	f.Downloads += 1
-	return true
+
+	dl := &DownloadData{
+		File:   fileHandle,
+		Reader: aesr,
+	}
+
+	log.Debug().Msg("starting download")
+	return dl, nil
 }
 
 func (f *SafeFileEx) StopDownload() {
 	f.Lock()
 	defer f.Unlock()
-	f.activeDownloads -= 1
+	if f.activeDownloads > 0 {
+		f.activeDownloads -= 1
+	} else {
+		log.Error().Msg("stopping download but there wasn't any running download")
+	}
 	log.Debug().Msg("stopping download")
 }
 
-func (f *SafeFileEx) NewFileHandle() (*os.File, error) {
-
-	file, err := os.Open(f.filePath)
-
-	return file, err
+func (f *SafeFileEx) Cleaned() bool {
+	return f.wasCleaned
 }
 
 // if the file was deleted does nothing
@@ -145,7 +179,7 @@ func (f *SafeFileEx) Clean() bool {
 	f.Lock()
 	defer f.Unlock()
 
-	if f.wasCleaned {
+	if f.Cleaned() {
 		return true
 	}
 
@@ -186,8 +220,8 @@ func (f *SafeFileEx) Clean() bool {
 func (f *SafeFileEx) CleanIfExpired() bool {
 
 	f.RLock()
-	isExpired := f.SafeFile.IsExpired()
-	wasCleaned := f.wasCleaned
+	isExpired := f.IsExpired()
+	wasCleaned := f.Cleaned()
 	f.RUnlock()
 
 	if !isExpired {

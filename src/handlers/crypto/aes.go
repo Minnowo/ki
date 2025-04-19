@@ -14,9 +14,22 @@ const (
 	AES128 AESKeySize = 16
 )
 
+func (k AESKeySize) Assert() {
+	switch k {
+	case AES256:
+		return
+	case AES192:
+		return
+	case AES128:
+		return
+	default:
+		panic("unreachable")
+	}
+}
+
 func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey, userKey []byte, w io.Writer) (io.Writer, error) {
 
-	key, err := OneTimePad(kSize, serverKey, userKey)
+	key, err := OneTimePad(serverKey, userKey)
 
 	if err != nil {
 		return nil, err
@@ -26,6 +39,8 @@ func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey, userKey []byte, w 
 }
 
 func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
+
+	AESKeySize(len(key)).Assert()
 
 	block, err := aes.NewCipher(key)
 
@@ -40,9 +55,9 @@ func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 	return writer, nil
 }
 
-func GetStreamDecryptionReaderEx(kSize AESKeySize, serverKey, userKey []byte, r io.Reader) (io.Reader, error) {
+func GetStreamDecryptionReaderEx(serverKey, userKey []byte, r io.Reader) (io.Reader, error) {
 
-	key, err := OneTimePad(kSize, serverKey, userKey)
+	key, err := OneTimePad(serverKey, userKey)
 
 	if err != nil {
 		return nil, err
@@ -52,6 +67,8 @@ func GetStreamDecryptionReaderEx(kSize AESKeySize, serverKey, userKey []byte, r 
 }
 
 func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
+
+	AESKeySize(len(key)).Assert()
 
 	block, err := aes.NewCipher(key)
 

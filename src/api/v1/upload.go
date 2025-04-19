@@ -147,7 +147,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				rc.SetWriteDeadline(deadline)
 			}
 
-			key, err = a.fmap.SaveFile(upload, part, timeoutHelper)
+			key, err = a.fmap.SaveFileWithProgress(upload, part, timeoutHelper)
 
 			if err != nil {
 

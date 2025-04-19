@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"io"
+	"ki/src/handlers/crypto"
 	"os"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 	defer tempFile.Close()
 
 	file := SafeFileEx{
+		key:             make([]byte, crypto.AES256),
 		filePath:        tempFile.Name(),
 		activeDownloads: 0,
 		SafeFile: SafeFile{
@@ -30,7 +33,11 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 	assert.False(file.IsExpired(), "expired before downloading anything")
 
 	// should use the download
-	file.StartDownload()
+	dl, err := file.StartDownload("")
+	assert.Nil(err)
+
+	_, err = io.Copy(io.Discard, dl.Reader)
+	assert.Nil(err)
 
 	assert.Equal(file.activeDownloads, 1, "expected 1 active download")
 

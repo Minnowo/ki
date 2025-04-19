@@ -44,6 +44,9 @@ test: format generate
 test-verbose: format generate
 	go test ./... -v
 
+test-clean: format generate
+	go clean -testcache
+
 
 build-site:
 	go build -ldflags "$(LDFLAGS)" -tags="$(TAGS)" -o $(SITE_DST) $(SITE_SRC)

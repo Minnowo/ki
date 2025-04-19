@@ -2,17 +2,12 @@ package crypto
 
 import (
 	"crypto/sha256"
-	"fmt"
-
-	"github.com/rs/zerolog/log"
 )
 
-func OneTimePad(kSize AESKeySize, serverKey, userKey []byte) ([]byte, error) {
+func OneTimePad(serverKey, userKey []byte) ([]byte, error) {
 
-	if len(serverKey) != int(kSize) {
-		log.Error().Int("keySize", int(kSize)).Int("serverKeyLen", len(serverKey)).Msg("Trying one time pad with invalid key size or key length")
-		return nil, fmt.Errorf("Key size does not match the server key")
-	}
+	kSize := AESKeySize(len(serverKey))
+	kSize.Assert()
 
 	if len(userKey) != int(kSize) {
 

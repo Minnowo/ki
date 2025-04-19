@@ -101,7 +101,9 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 
 	if file.UserSetPassword {
 
-		if err := bcrypt.CompareHashAndPassword(file.userPasswordHash, []byte(password)); err != nil {
+		err := bcrypt.CompareHashAndPassword(file.userPasswordHash, []byte(password))
+
+		if err != nil {
 
 			if err != bcrypt.ErrMismatchedHashAndPassword {
 				return err
@@ -111,33 +113,18 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 		}
 	}
 
-	fileHandle, err := file.NewFileHandle()
+	download, err := file.StartDownload(password)
 
-	if err != nil {
-		return err
-	}
-	defer fileHandle.Close()
-
-	var aesr io.Reader
-
-	if file.UserSetPassword {
-		aesr, err = crypto.GetStreamDecryptionReaderEx(f.keySize, file.key, []byte(password), fileHandle)
+	if err == nil {
+		defer file.StopDownload()
+		defer download.File.Close()
 	} else {
-		aesr, err = crypto.GetStreamDecryptionReader(file.key, fileHandle)
-	}
-
-	if err != nil {
 		return err
 	}
 
-	if !file.StartDownload() {
-		return ErrFileExpired
-	}
-	defer file.StopDownload()
+	n, err := io.Copy(w, download.Reader)
 
-	n, err := io.Copy(w, aesr)
-
-	log.Info().Int64("n", n).Msg("wrote bytes to client")
+	log.Debug().Int64("n", n).Msg("wrote bytes to client")
 
 	if err != nil {
 		log.Warn().Err(err).Msg("error while sending someone a file")
@@ -147,11 +134,11 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 	return nil
 }
 
-func (f *FileMap) SaveFile(
-	upload SafeFileUpload,
-	r io.Reader,
-	update func(int),
-) (*FileID, error) {
+func (f *FileMap) SaveFile(upload SafeFileUpload, r io.Reader) (*FileID, error) {
+	return f.SaveFileWithProgress(upload, r, nil)
+}
+
+func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, update func(int)) (*FileID, error) {
 
 	if err := upload.Valid(); err != nil {
 		return nil, err
@@ -159,10 +146,11 @@ func (f *FileMap) SaveFile(
 
 	file, err := os.CreateTemp(f.TempDir, config.FILENAME_PREFIX+"*")
 
-	if err != nil {
+	if err == nil {
+		defer file.Close()
+	} else {
 		return nil, err
 	}
-	defer file.Close()
 
 	didUserGivePassword := upload.Password != ""
 
