@@ -17,7 +17,9 @@ import (
 )
 
 func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
-	pages.PageUpload().Render(r.Context(), w)
+	pages.PageUpload(&pages.PageUploadView{
+		BaseView: pages.NewBaseViewFromReq(r),
+	}).Render(r.Context(), w)
 }
 
 func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {

@@ -41,6 +41,9 @@ format:
 test: format generate
 	go test ./...
 
+test-race: format generate
+	go test -race ./... -v
+
 test-verbose: format generate
 	go test ./... -v
 

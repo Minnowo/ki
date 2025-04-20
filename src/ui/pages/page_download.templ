@@ -142,7 +142,12 @@ templ PageDownload( view *PageDownloadView) {
         <br/>
 
         <pre class="whitespace-pre-wrap" title="Original filename"> 
-            { view.File.Name }
+
+            if view.File.Name == "" {
+                no file name
+            } else {
+                { view.File.Name }
+            }
         </pre> 
 
         <br/>

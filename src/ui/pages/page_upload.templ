@@ -1,13 +1,68 @@
 package pages
 
 import(
+"fmt"
 "ki/src/config"
 "ki/src/handlers/str"
 "ki/src/ui/formkeys"
 )
 
+templ e2eOptions(view *PageUploadView ) {
 
-templ PageUpload() {
+    <br/>
+    <h1>E2E options</h1>
+    <br/>
+        
+    <pre class="my-2" title="GPG command to encrypt a file with a password">
+        <textarea class="w-full" rows="1">
+            gpg -c your_file.txt
+        </textarea>
+    </pre>
+
+    <pre class="my-2" title="7-Zip command to encrypt a file with a password">
+        <textarea class="w-full" rows="1">
+            7z a output.7z -pyour_password your_file.txt
+        </textarea>
+    </pre>
+}
+
+templ otherUploadOptions(view *PageUploadView ) {
+
+    {{
+        dl := view.Origin + "/api/upload"
+
+        curlCmd := fmt.Sprint("curl -Ls -H \"Content-Type: multipart/form-data\" ", dl, 
+            " -o upload -w \"\\n%{url_effective}\\n\" ",
+            " -F ", formkeys.UPLOAD_FORM_EXPIRE_DAYS, "=\"0\"",
+            " -F ", formkeys.UPLOAD_FORM_EXPIRE_HOURS, "=\"1\"",
+            " -F ", formkeys.UPLOAD_FORM_EXPIRE_MINUTES, "=\"0\"",
+            " -F ", formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS, "=\"1\"",
+            " -F ", formkeys.UPLOAD_FORM_PASSWORD, "=\"\"",
+            " -F ", formkeys.UPLOAD_FORM_FILE, "=\"data=@your_file_path.txt\"",
+            )
+        // wgetCmd := "wget -O /dev/null --content-disposition " + dl
+    }}
+
+    <br/>
+    <h1>Other uploads</h1>
+    <br/>
+        
+    <pre class="my-2" title="Curl command to download the file">
+        <textarea class="w-full" rows="1">
+            { curlCmd }
+        </textarea>
+    </pre>
+
+    <!--
+    <pre class="my-2" title="wget command to download the file">
+        <textarea class="w-full whitespace-nowrap" rows="1">
+            { wgetCmd }
+        </textarea>
+    </pre>
+    -->
+}
+
+templ PageUpload(view *PageUploadView) {
 
     @Base() {
 
@@ -58,5 +113,9 @@ templ PageUpload() {
             </table>
                         
         </form>
+
+        @otherUploadOptions(view)
+
+        @e2eOptions(view)
     }
 }
