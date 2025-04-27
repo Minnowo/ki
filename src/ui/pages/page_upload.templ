@@ -12,7 +12,7 @@ templ e2eOptions(view *PageUploadView ) {
     <br/>
     <h1>E2E options</h1>
     <br/>
-        
+
     <pre class="my-2" title="GPG command to encrypt a file with a password">
         <textarea class="w-full" rows="1">
             gpg -c your_file.txt
@@ -113,8 +113,6 @@ templ PageUpload(view *PageUploadView) {
             </table>
                         
         </form>
-
-        @otherUploadOptions(view)
 
         @e2eOptions(view)
     }

@@ -20,6 +20,10 @@ func NotFound(w http.ResponseWriter) {
 	Done(w, http.StatusNotFound, "404 not found")
 }
 
+func Unauthorized(w http.ResponseWriter) {
+	Done(w, http.StatusUnauthorized, "401 unauthorized")
+}
+
 func Close(r io.ReadCloser, w http.ResponseWriter, code int, msg string) {
 	Done(w, code, msg)
 }

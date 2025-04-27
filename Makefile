@@ -55,5 +55,5 @@ build-site:
 	go build -ldflags "$(LDFLAGS)" -tags="$(TAGS)" -o $(SITE_DST) $(SITE_SRC)
 
 run: format generate
-	LOG_LEVEL=debug go run $(SITE_SRC)
+	LOG_LEVEL=debug go run $(SITE_SRC) run
 

@@ -1,0 +1,45 @@
+
+package pages
+
+import(
+    "ki/src/ui/formkeys"
+)
+
+
+templ PageLogin() {
+
+    @Base() {
+
+        <br/>
+        <h1>Login to upload files</h1>
+        <br/>
+
+        <form enctype="multipart/form-data" action="/api/login" method="POST">
+
+            <table class="table-auto table-padded">
+
+            <tbody class="text-right">
+
+                <tr title="Your username">
+                    <td class="px-2"> Username </td>
+                    <td> <input type="text" name={ formkeys.LOGIN_FORM_USERNAME } required> </td>
+                </tr>
+
+                <tr title="Your password">
+                    <td class="px-2"> Password </td>
+                    <td> <input type="password" name={ formkeys.LOGIN_FORM_PASSWORD } required> </td>
+                </tr>
+
+                <tr title="Login">
+                    <td colspan="2"> 
+                        <input class="w-full" type="submit" value="Login">
+                    </td>
+                </tr>
+
+            </tbody>
+
+            </table>
+                        
+        </form>
+    }
+}

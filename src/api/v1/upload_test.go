@@ -3,12 +3,14 @@ package v1
 import (
 	"bytes"
 	"io"
+	"ki/src/handlers/user"
 	"ki/src/ui/formkeys"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,8 +42,10 @@ func TestUpload(t *testing.T) {
 		r.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 		w := httptest.NewRecorder()
 
-		apiv := APIV1{}
+		apiv := APIV1{UserRegistry: user.NewRegistry()}
+
 		apiv.Init()
+		apiv.Register(mux.NewRouter())
 		apiv.fmap.TempDir = t.TempDir()
 		apiv.file_upload(w, r)
 

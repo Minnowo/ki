@@ -179,7 +179,13 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/download/"+key.Hex(), http.StatusSeeOther)
+	url, err := a.router.Get("download").URL("fileIdHex", key.Hex())
+
+	if err != nil {
+		log.Panic().Str("fileIdHex", key.Hex()).Msg("could not build route url")
+	}
+
+	http.Redirect(w, r, url.String(), http.StatusSeeOther)
 
 	stopTime := time.Now()
 

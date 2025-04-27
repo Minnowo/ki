@@ -11,7 +11,7 @@ import(
 )
 
 
-templ checksumInformation(view *PageDownloadView ){ 
+templ checksumInformation(view *PageDownloadFileView ){ 
 
     {{
         sha512 := hex.EncodeToString(view.File.Sha512Hash)
@@ -73,7 +73,8 @@ templ checksumInformation(view *PageDownloadView ){
     </tbody>
     </table>
 }
-templ otherDownloadOptions(view *PageDownloadView, url string ){ 
+
+templ otherDownloadOptions(view *PageDownloadFileView, url string ){ 
 
     {{
         dl := view.Origin + url
@@ -108,7 +109,29 @@ templ otherDownloadOptions(view *PageDownloadView, url string ){
 }
 
 
-templ PageDownload( view *PageDownloadView) {
+templ PageDownload() {
+
+    @Base() {
+
+        <br/>
+
+        <h1 title="Download a file">
+            Download a file
+        </h1>
+
+        <br/>
+
+        <p>
+            To download a file, navigate to 
+            <span class="font-mono"> { "/download/{fileId}" } </span>
+            where <span class="font-mono"> { "{fileId}" } </span>
+            is the { strconv.Itoa(config.FILE_ID_SIZE) } byte file identifier of the file you want to download.
+        </p>
+
+    }
+}
+
+templ PageDownloadFile( view *PageDownloadFileView) {
 
     @Base() {
 

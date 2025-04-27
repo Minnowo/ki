@@ -4,7 +4,7 @@ import (
 	"ki/src/handlers/storage"
 )
 
-type PageDownloadView struct {
+type PageDownloadFileView struct {
 	BaseView
 	File   *storage.SafeFile
 	FileID storage.FileID

@@ -489,6 +489,10 @@ video {
   text-align: right;
 }
 
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 .text-c-white {
   --tw-text-opacity: 1;
   color: rgb(212 212 212 / var(--tw-text-opacity));

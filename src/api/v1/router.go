@@ -1,45 +1,59 @@
 package v1
 
 import (
+	"ki/src/api/middleware"
 	"ki/src/config"
 	"ki/src/handlers/storage"
+	"ki/src/handlers/user"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type APIV1 struct {
-	fmap      storage.FileMap
-	fmapDChan chan bool
+	router       *mux.Router
+	fmap         storage.FileMap
+	fmapDChan    chan bool
+	UserRegistry *user.UserRegistry
 }
 
 func (a *APIV1) Init() {
 	a.fmap = storage.NewFileMap(config.AES_KEY_SIZE, bcrypt.DefaultCost)
 	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
+
+	if a.UserRegistry == nil {
+		log.Panic().Msg("user registry is nil")
+	}
 }
+
 func (a *APIV1) Deinit() {
 	a.fmapDChan <- true
 }
 
 func (a *APIV1) Register(r *mux.Router) {
 
-	r.HandleFunc("/", a.ui_upload)
-	// r.HandleFunc("/about", a.ui_about)
-	r.HandleFunc("/upload", a.ui_upload)
-	r.HandleFunc("/download/{fileIdHex}", a.ui_download)
-	// r.HandleFunc("/links", a.ui_links)
+	a.router = r
 
-	r.HandleFunc("/api/upload", a.file_upload)
-	r.HandleFunc("/api/download/{fileIdHex}", a.file_download)
+	ui := r.Methods("GET").Subrouter()
+	ui.HandleFunc("/login", a.ui_login)
+	ui.HandleFunc("/logout", a.ui_logout)
+	ui.HandleFunc("/upload", a.ui_upload)
+	ui.HandleFunc("/download", a.ui_download2)
+	ui.HandleFunc("/download/{fileIdHex}", a.ui_download).Name("download")
+	ui.HandleFunc("/", a.ui_upload)
+
+	api := r.NewRoute().Subrouter()
+	api.Use(middleware.NoCache)
+
+	apiP := api.Methods("POST").Subrouter()
+	apiP.HandleFunc("/api/login", a.api_login)
+
+	apiAuth := apiP.NewRoute().Subrouter()
+	apiAuth.Use(middleware.Auth(a.UserRegistry), middleware.RequireAuth())
+	apiAuth.HandleFunc("/api/upload", a.file_upload)
+
+	apiG := api.Methods("GET").Subrouter()
+	apiG.HandleFunc("/api/download/{fileIdHex}", a.file_download)
 }
-
-// func (a *APIV1) ui_home(w http.ResponseWriter, r *http.Request) {
-// 	pages.Portal().Render(r.Context(), w)
-// }
-// func (a *APIV1) ui_about(w http.ResponseWriter, r *http.Request) {
-// 	pages.PageAbout().Render(r.Context(), w)
-// }
-// func (a *APIV1) ui_links(w http.ResponseWriter, r *http.Request) {
-// 	pages.PageLinks().Render(r.Context(), w)
-// }

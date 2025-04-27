@@ -107,6 +107,7 @@ func (f *SafeFileEx) IsExpiredSync() bool {
 type DownloadData struct {
 	Reader io.Reader
 	File   *os.File
+	Name   string
 }
 
 // if true a new download has been counted.
@@ -145,6 +146,7 @@ func (f *SafeFileEx) StartDownload(password string) (*DownloadData, error) {
 	dl := &DownloadData{
 		File:   fileHandle,
 		Reader: aesr,
+		Name:   f.Name,
 	}
 
 	log.Debug().Msg("starting download")
