@@ -17,6 +17,9 @@ const (
 const MAX_UPLOAD_SIZE int64 = 8000 * MB
 const MAX_LOGIN_FORM_SIZE int64 = 2 * KB
 
+const MAX_USERNAME_LENGTH int = 10
+const MAX_USER_PASSWORD_LENGTH int = 32
+
 const AES_KEY_SIZE crypto.AESKeySize = crypto.AES256
 const MAX_PASSWORD_LENGTH int = 72 // bcrypt max allowed
 

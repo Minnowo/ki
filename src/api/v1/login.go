@@ -19,9 +19,7 @@ func (a *APIV1) api_login(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, config.MAX_LOGIN_FORM_SIZE)
 
-	err := r.ParseMultipartForm(config.MAX_LOGIN_FORM_SIZE)
-
-	if err != nil {
+	if err := r.ParseMultipartForm(config.MAX_LOGIN_FORM_SIZE); err != nil {
 		log.Debug().Err(err).Msg("failed to get multipartReader")
 		api.Done(w, http.StatusBadRequest, "failed to parse form")
 		return
@@ -34,6 +32,22 @@ func (a *APIV1) api_login(w http.ResponseWriter, r *http.Request) {
 
 	if username == "" || password == "" {
 		api.Done(w, http.StatusBadRequest, "missing username or password")
+		return
+	}
+
+	if len(username) > config.MAX_USERNAME_LENGTH || len(password) > config.MAX_USER_PASSWORD_LENGTH {
+		api.Done(w, http.StatusBadRequest, "username or password is to long")
+		return
+	}
+
+	if !a.UserRegistry.HasUser(username) {
+		api.Done(w, http.StatusUnauthorized, "username or password is incorrect")
+		return
+	}
+
+	// guard this behind the HasUser to prevent someone from trying a million different names to waste memory
+	if !a.rateLimiter.Allow(username) {
+		api.Done(w, http.StatusTooManyRequests, "logins are rate limted")
 		return
 	}
 

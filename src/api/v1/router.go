@@ -3,6 +3,7 @@ package v1
 import (
 	"ki/src/api/middleware"
 	"ki/src/config"
+	"ki/src/handlers/ratelimit"
 	"ki/src/handlers/storage"
 	"ki/src/handlers/user"
 	"time"
@@ -10,18 +11,21 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/time/rate"
 )
 
 type APIV1 struct {
 	router       *mux.Router
 	fmap         storage.FileMap
 	fmapDChan    chan bool
+	rateLimiter  *ratelimit.RateLimiter
 	UserRegistry *user.UserRegistry
 }
 
 func (a *APIV1) Init() {
 	a.fmap = storage.NewFileMap(config.AES_KEY_SIZE, bcrypt.DefaultCost)
 	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
+	a.rateLimiter = ratelimit.New(rate.Every(time.Millisecond*1000), 1)
 
 	if a.UserRegistry == nil {
 		log.Panic().Msg("user registry is nil")

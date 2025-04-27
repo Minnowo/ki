@@ -66,6 +66,13 @@ func (u *UserRegistry) CheckToken(tokenStr string) (string, bool) {
 	return "", false
 }
 
+func (u *UserRegistry) HasUser(name string) (bool) {
+
+	_, ok := u.users[name]
+
+	return ok
+}
+
 func (u *UserRegistry) Login(name, password string) (string, bool) {
 
 	user, ok := u.users[name]
