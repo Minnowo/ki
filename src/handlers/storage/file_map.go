@@ -124,7 +124,12 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 	}
 
 	if r, ok := w.(http.ResponseWriter); ok {
-		r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", download.Name))
+
+		if download.Name == "" {
+			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key.Hex()))
+		} else {
+			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", download.Name))
+		}
 	}
 
 	n, err := io.Copy(w, download.Reader)

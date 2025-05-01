@@ -471,6 +471,10 @@ video {
   white-space: pre-wrap;
 }
 
+.break-words {
+  overflow-wrap: break-word;
+}
+
 .bg-c-black {
   --tw-bg-opacity: 1;
   background-color: rgb(31 31 31 / var(--tw-bg-opacity));

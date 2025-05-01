@@ -66,7 +66,7 @@ func (u *UserRegistry) CheckToken(tokenStr string) (string, bool) {
 	return "", false
 }
 
-func (u *UserRegistry) HasUser(name string) (bool) {
+func (u *UserRegistry) HasUser(name string) bool {
 
 	_, ok := u.users[name]
 
