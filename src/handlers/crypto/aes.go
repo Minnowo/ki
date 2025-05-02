@@ -3,6 +3,8 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/pbkdf2"
+	"crypto/sha256"
 	"io"
 )
 
@@ -27,9 +29,11 @@ func (k AESKeySize) Assert() {
 	}
 }
 
-func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey, userKey []byte, w io.Writer) (io.Writer, error) {
+const PBKDF2_ROUNDS int = 4096
 
-	key, err := OneTimePad(serverKey, userKey)
+func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey []byte, userKey string, w io.Writer) (io.Writer, error) {
+
+	key, err := pbkdf2.Key(sha256.New, userKey, serverKey, PBKDF2_ROUNDS, int(kSize))
 
 	if err != nil {
 		return nil, err
@@ -55,9 +59,9 @@ func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 	return writer, nil
 }
 
-func GetStreamDecryptionReaderEx(serverKey, userKey []byte, r io.Reader) (io.Reader, error) {
+func GetStreamDecryptionReaderEx(kSize AESKeySize, serverKey []byte, userKey string, r io.Reader) (io.Reader, error) {
 
-	key, err := OneTimePad(serverKey, userKey)
+	key, err := pbkdf2.Key(sha256.New, userKey, serverKey, PBKDF2_ROUNDS, int(kSize))
 
 	if err != nil {
 		return nil, err

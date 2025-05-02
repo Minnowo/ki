@@ -33,7 +33,7 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 	assert.False(file.IsExpired(), "expired before downloading anything")
 
 	// should use the download
-	dl, err := file.StartDownload("")
+	dl, err := file.StartDownload(crypto.AES256, "")
 	assert.Nil(err)
 
 	_, err = io.Copy(io.Discard, dl.Reader)

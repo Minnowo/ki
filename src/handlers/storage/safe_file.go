@@ -112,7 +112,7 @@ type DownloadData struct {
 
 // if true a new download has been counted.
 // returns false if the file is expired.
-func (f *SafeFileEx) StartDownload(password string) (*DownloadData, error) {
+func (f *SafeFileEx) StartDownload(kSize crypto.AESKeySize, password string) (*DownloadData, error) {
 
 	f.Lock()
 	defer f.Unlock()
@@ -130,7 +130,7 @@ func (f *SafeFileEx) StartDownload(password string) (*DownloadData, error) {
 	var aesr io.Reader
 
 	if f.UserSetPassword {
-		aesr, err = crypto.GetStreamDecryptionReaderEx(f.key, []byte(password), fileHandle)
+		aesr, err = crypto.GetStreamDecryptionReaderEx(kSize, f.key, password, fileHandle)
 	} else {
 		aesr, err = crypto.GetStreamDecryptionReader(f.key, fileHandle)
 	}

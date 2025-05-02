@@ -114,7 +114,7 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 		}
 	}
 
-	download, err := file.StartDownload(password)
+	download, err := file.StartDownload(f.keySize, password)
 
 	if err == nil {
 		defer file.StopDownload()
@@ -170,7 +170,7 @@ func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, updat
 	var aesw io.Writer
 
 	if didUserGivePassword {
-		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, []byte(upload.Password), file)
+		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, upload.Password, file)
 	} else {
 		aesw, err = crypto.GetStreamEncryptionWriter(key, file)
 	}
