@@ -13,7 +13,7 @@ type BaseView struct {
 
 func NewBaseViewFromReq(r *http.Request) BaseView {
 
-	tls := r.TLS != nil
+	tls := r.URL.Scheme == "https"
 	host := r.Host
 
 	if host == "" {
