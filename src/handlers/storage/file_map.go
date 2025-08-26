@@ -11,6 +11,7 @@ import (
 	"ki/src/config"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -116,14 +117,16 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 
 	download, err := file.StartDownload(f.keySize, password)
 
-	if err == nil {
-		defer file.StopDownload()
-		defer download.File.Close()
-	} else {
+	if err != nil {
 		return err
 	}
 
+	defer file.StopDownload()
+	defer download.File.Close()
+
 	if r, ok := w.(http.ResponseWriter); ok {
+
+		r.Header().Set("Content-Length", strconv.FormatInt(file.Size, 10))
 
 		if download.Name == "" {
 			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key.Hex()))
