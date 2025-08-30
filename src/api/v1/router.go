@@ -38,6 +38,8 @@ func (a *APIV1) Deinit() {
 
 func (a *APIV1) Register(r *mux.Router) {
 
+	r.Use(middleware.ProxyHeaders(config.TrustedProxies()))
+
 	a.router = r
 
 	ui := r.Methods("GET").Subrouter()
@@ -50,7 +52,6 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	api := r.NewRoute().Subrouter()
 	api.Use(middleware.NoCache)
-	api.Use(middleware.ProxyHeaders(config.TrustedProxies()))
 
 	apiP := api.Methods("POST").Subrouter()
 	apiP.HandleFunc("/api/login", a.api_login)

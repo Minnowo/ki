@@ -3,6 +3,8 @@ package pages
 import (
 	"ki/src/config"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 type BaseView struct {
@@ -13,7 +15,14 @@ type BaseView struct {
 
 func NewBaseViewFromReq(r *http.Request) BaseView {
 
-	tls := r.URL.Scheme == "https"
+	var tls bool
+
+	if r.URL.Scheme == "" {
+		tls = r.TLS != nil
+	} else {
+		tls = r.URL.Scheme == "https"
+	}
+
 	host := r.Host
 
 	if host == "" {
@@ -27,6 +36,12 @@ func NewBaseViewFromReq(r *http.Request) BaseView {
 	} else {
 		origin = "http://" + host
 	}
+
+	log.Debug().
+		Str("scheme", r.URL.Scheme).
+		Bool("tls", tls).
+		Str("host", host).
+		Msg("base view")
 
 	return BaseView{
 		IsTLS:  tls,

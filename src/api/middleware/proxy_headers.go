@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -52,8 +54,12 @@ func ProxyHeaders(trustedProxies []*net.IPNet) func(next http.Handler) http.Hand
 			remoteAddr, _, _ := net.SplitHostPort(r.RemoteAddr)
 			remoteIP := net.ParseIP(remoteAddr)
 
+			trusted := isTrustedProxy(trustedProxies, remoteIP)
+
+			log.Debug().Str("ip", remoteAddr).Bool("trusted_proxy", trusted).Msg("proxy headers")
+
 			// Do nothing if we don't trust this address.
-			if !isTrustedProxy(trustedProxies, remoteIP) {
+			if ! trusted{
 				return
 			}
 
@@ -65,7 +71,10 @@ func ProxyHeaders(trustedProxies []*net.IPNet) func(next http.Handler) http.Hand
 			// Set the scheme (proto) with the value passed from the proxy.
 			if scheme := getScheme(r); scheme != "" {
 				r.URL.Scheme = scheme
+			} else {
+				r.URL.Scheme = "https" // default to https since that's what most proxies are for
 			}
+
 			// Set the host with the value passed by the proxy
 			if r.Header.Get(xForwardedHost) != "" {
 				r.Host = r.Header.Get(xForwardedHost)
