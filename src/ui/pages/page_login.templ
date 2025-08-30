@@ -6,9 +6,9 @@ import(
 )
 
 
-templ PageLogin() {
+templ PageLogin(view *BaseView) {
 
-    @Base() {
+    @Base(view) {
 
         <br/>
         <h1>Login to upload files</h1>

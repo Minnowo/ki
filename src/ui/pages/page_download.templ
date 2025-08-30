@@ -1,13 +1,12 @@
 package pages
 
-import "fmt"
-
 import(
     "ki/src/handlers/str"
     "ki/src/config"
 	"encoding/hex"
 	"strconv"
 	"time"
+    "fmt"
 )
 
 
@@ -109,9 +108,9 @@ templ otherDownloadOptions(view *PageDownloadFileView, url string ){
 }
 
 
-templ PageDownload() {
+templ PageDownload(view *BaseView) {
 
-    @Base() {
+    @Base(view) {
 
         <br/>
 
@@ -133,7 +132,7 @@ templ PageDownload() {
 
 templ PageDownloadFile( view *PageDownloadFileView) {
 
-    @Base() {
+    @Base(&view.BaseView) {
 
         {{ 
             idHex := view.FileID.Hex()

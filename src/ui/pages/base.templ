@@ -5,7 +5,7 @@ import (
 )
 
 
-templ Base() {
+templ Base(view *BaseView) {
 
     <html>
     <head>
@@ -15,7 +15,7 @@ templ Base() {
 
     <body class="lg:p-32 md:p-16 p-8 bg-c-black text-c-white">
 
-        @Header()
+        @Header(view)
 
         <center>
             { children... }

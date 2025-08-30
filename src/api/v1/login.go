@@ -12,7 +12,8 @@ import (
 )
 
 func (a *APIV1) ui_login(w http.ResponseWriter, r *http.Request) {
-	pages.PageLogin().Render(r.Context(), w)
+	view := pages.NewBaseViewFromReq(r)
+	pages.PageLogin(&view).Render(r.Context(), w)
 }
 
 func (a *APIV1) api_login(w http.ResponseWriter, r *http.Request) {

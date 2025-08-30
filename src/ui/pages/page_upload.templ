@@ -1,10 +1,10 @@
 package pages
 
 import(
-"fmt"
-"ki/src/config"
-"ki/src/handlers/str"
-"ki/src/ui/formkeys"
+    "fmt"
+    "ki/src/config"
+    "ki/src/handlers/str"
+    "ki/src/ui/formkeys"
 )
 
 templ e2eOptions(view *PageUploadView ) {
@@ -64,7 +64,7 @@ templ otherUploadOptions(view *PageUploadView ) {
 
 templ PageUpload(view *PageUploadView) {
 
-    @Base() {
+    @Base(&view.BaseView) {
 
         <br/>
         <h1>Upload a file</h1>

@@ -32,7 +32,8 @@ func getFileID(r *http.Request) *storage.FileID {
 }
 
 func (a *APIV1) ui_download2(w http.ResponseWriter, r *http.Request) {
-	pages.PageDownload().Render(r.Context(), w)
+	view := pages.NewBaseViewFromReq(r)
+	pages.PageDownload(&view).Render(r.Context(), w)
 }
 
 func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
