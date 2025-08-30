@@ -24,7 +24,7 @@ func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
 
 func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
-	r.Body = http.MaxBytesReader(w, r.Body, config.MAX_UPLOAD_SIZE)
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxUploadSize())
 	rc := http.NewResponseController(w)
 
 	log.Info().Msg("handling an upload post")

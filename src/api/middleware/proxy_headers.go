@@ -59,7 +59,7 @@ func ProxyHeaders(trustedProxies []*net.IPNet) func(next http.Handler) http.Hand
 			log.Debug().Str("ip", remoteAddr).Bool("trusted_proxy", trusted).Msg("proxy headers")
 
 			// Do nothing if we don't trust this address.
-			if ! trusted{
+			if !trusted {
 				return
 			}
 

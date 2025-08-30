@@ -108,6 +108,14 @@ func main() {
 						Sources:  cli.EnvVars(config.ENV__USER_REGISTRY_PATH),
 						Required: false,
 					},
+					&cli.Int64Flag{
+						Name:     "max-upload-size",
+						Aliases:  []string{"u"},
+						Usage:    "The max number of bytes a file can be",
+						Value:    config.MB * 512,
+						Sources:  cli.EnvVars(config.ENV__MAX_UPLOAD_SIZE),
+						Required: false,
+					},
 					&cli.StringSliceFlag{
 						Name:    "trused-proxy",
 						Aliases: []string{"P"},

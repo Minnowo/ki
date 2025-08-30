@@ -14,7 +14,6 @@ const (
 	YB
 )
 
-const MAX_UPLOAD_SIZE int64 = 8000 * MB
 const MAX_LOGIN_FORM_SIZE int64 = 2 * KB
 
 const MAX_USERNAME_LENGTH int = 10
@@ -34,3 +33,15 @@ const SHOW_DOWNLOADS_REMAINING bool = true
 const EXPIREY_TIME_FORMAT string = "2006-01-02 15:04:05 MST"
 
 const HOST string = "localhost"
+
+var (
+	maxUploadSize int64 = 512 * MB
+)
+
+func MaxUploadSize() int64 {
+	return maxUploadSize
+}
+
+func SetMaxUploadSize(size int64) {
+	maxUploadSize = size
+}
