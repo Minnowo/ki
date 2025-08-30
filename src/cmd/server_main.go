@@ -23,7 +23,7 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	port := c.Value("port").(int32)
 	maxUploadByes := c.Value("max-upload-size").(int64)
 
-	if trustedProxies, ok := c.Value("trused-proxy").([]string); ok {
+	if trustedProxies, ok := c.Value("trusted-proxy").([]string); ok {
 		config.ParseTrustedProxies(trustedProxies)
 	}
 	config.SetMaxUploadSize(maxUploadByes)
