@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"ki/src/cmd"
+	"ki/src/config"
 	"os"
 
 	"github.com/rs/zerolog/log"
@@ -41,7 +42,7 @@ func main() {
 								Aliases:  []string{"o"},
 								Usage:    "The output file",
 								Value:    "./users.json",
-								Sources:  cli.EnvVars("USER_REGISTRY_PATH"),
+								Sources:  cli.EnvVars(config.ENV__USER_REGISTRY_PATH),
 								Required: false,
 							},
 						},
@@ -56,7 +57,7 @@ func main() {
 								Aliases:  []string{"o"},
 								Usage:    "The source file",
 								Value:    "./users.json",
-								Sources:  cli.EnvVars("USER_REGISTRY_PATH"),
+								Sources:  cli.EnvVars(config.ENV__USER_REGISTRY_PATH),
 								Required: false,
 							},
 						},
@@ -71,7 +72,7 @@ func main() {
 								Aliases:  []string{"o"},
 								Usage:    "The source file",
 								Value:    "./users.json",
-								Sources:  cli.EnvVars("USER_REGISTRY_PATH"),
+								Sources:  cli.EnvVars(config.ENV__USER_REGISTRY_PATH),
 								Required: false,
 							},
 						},
@@ -88,7 +89,7 @@ func main() {
 						Aliases:  []string{"b"},
 						Usage:    "The bind address",
 						Value:    "0.0.0.0",
-						Sources:  cli.EnvVars("BIND_ADDR"),
+						Sources:  cli.EnvVars(config.ENV__BIND_ADDR),
 						Required: false,
 					},
 					&cli.Int32Flag{
@@ -96,7 +97,7 @@ func main() {
 						Aliases:  []string{"p"},
 						Usage:    "The port number",
 						Value:    9070,
-						Sources:  cli.EnvVars("PORT"),
+						Sources:  cli.EnvVars(config.ENV__PORT),
 						Required: false,
 					},
 					&cli.StringFlag{
@@ -104,7 +105,22 @@ func main() {
 						Aliases:  []string{"r"},
 						Usage:    "The user registry file",
 						Value:    "./users.json",
-						Sources:  cli.EnvVars("USER_REGISTRY_PATH"),
+						Sources:  cli.EnvVars(config.ENV__USER_REGISTRY_PATH),
+						Required: false,
+					},
+					&cli.StringSliceFlag{
+						Name:    "trused-proxy",
+						Aliases: []string{"P"},
+						Usage:   "Subnet of trused-proxies",
+						Value: []string{
+							"127.0.0.0/8",
+							"10.0.0.0/8",
+							"172.16.0.0/12",
+							"192.168.0.0/16",
+							"fd00::/8",
+							"::1/128",
+						},
+						Sources:  cli.EnvVars(config.ENV__TRUSTED_PROXIES),
 						Required: false,
 					},
 				},
