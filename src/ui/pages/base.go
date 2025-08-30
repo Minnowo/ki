@@ -13,6 +13,7 @@ type BaseView struct {
 	Host         string
 	Origin       string
 	IsCloudflare bool
+	R            *http.Request
 }
 
 func NewBaseViewFromReq(r *http.Request) BaseView {
@@ -47,6 +48,7 @@ func NewBaseViewFromReq(r *http.Request) BaseView {
 		Msg("base view")
 
 	return BaseView{
+		R:            r,
 		IsTLS:        tls,
 		Host:         host,
 		Origin:       origin,

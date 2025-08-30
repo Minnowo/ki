@@ -1,4 +1,4 @@
-package middleware
+package proxy
 
 // from https://github.com/gorilla/handlers/blob/v1.5.2/proxy_headers.go
 
@@ -60,25 +60,31 @@ func ProxyHeaders(trustedProxies []*net.IPNet) func(next http.Handler) http.Hand
 
 			// Do nothing if we don't trust this address.
 			if !trusted {
-				return
-			}
 
-			// Set the remote IP with the value passed from the proxy.
-			if fwd := getIP(r); fwd != "" {
-				r.RemoteAddr = fwd
-			}
+				if r.TLS != nil {
+					r.URL.Scheme = "https"
+				} else {
+					r.URL.Scheme = "http"
+				}
 
-			// Set the scheme (proto) with the value passed from the proxy.
-			if scheme := getScheme(r); scheme != "" {
-				r.URL.Scheme = scheme
 			} else {
-				r.URL.Scheme = "https" // default to https since that's what most proxies are for
+
+				// Set the remote IP with the value passed from the proxy.
+				if fwd := getIP(r); fwd != "" {
+					r.RemoteAddr = fwd
+				}
+
+				// Set the scheme (proto) with the value passed from the proxy.
+				if scheme := getScheme(r); scheme != "" {
+					r.URL.Scheme = scheme
+				}
+				// Set the host with the value passed by the proxy
+				if r.Header.Get(xForwardedHost) != "" {
+					r.Host = r.Header.Get(xForwardedHost)
+				}
 			}
 
-			// Set the host with the value passed by the proxy
-			if r.Header.Get(xForwardedHost) != "" {
-				r.Host = r.Header.Get(xForwardedHost)
-			}
+			r.URL.Host = r.Host
 
 			// Call the next handler in the chain.
 			next.ServeHTTP(w, r)
@@ -140,6 +146,10 @@ func getScheme(r *http.Request) string {
 		if match := protoRegex.FindStringSubmatch(proto); len(match) > 1 {
 			scheme = strings.ToLower(match[1])
 		}
+	} else if r.TLS != nil {
+		r.URL.Scheme = "https"
+	} else {
+		r.URL.Scheme = "http"
 	}
 
 	return scheme

@@ -455,6 +455,10 @@ video {
   display: table;
 }
 
+.hidden {
+  display: none;
+}
+
 .w-full {
   width: 100%;
 }

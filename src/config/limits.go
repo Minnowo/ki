@@ -1,6 +1,9 @@
 package config
 
-import "ki/src/handlers/crypto"
+import (
+	"ki/src/handlers/crypto"
+	"time"
+)
 
 const (
 	_  = iota //ignore first value by assigning to blank identifier
@@ -13,6 +16,8 @@ const (
 	ZB
 	YB
 )
+
+const SESSION_MAX_AGE time.Duration = time.Hour * 24
 
 const MAX_LOGIN_FORM_SIZE int64 = 2 * KB
 

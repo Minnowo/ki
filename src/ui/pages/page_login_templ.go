@@ -9,6 +9,8 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "ki/src/ui"
+
 import (
 	"ki/src/ui/formkeys"
 )
@@ -46,33 +48,41 @@ func PageLogin(view *BaseView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<br><h1>Login to upload files</h1><br><form enctype=\"multipart/form-data\" action=\"/api/login\" method=\"POST\"><table class=\"table-auto table-padded\"><tbody class=\"text-right\"><tr title=\"Your username\"><td class=\"px-2\">Username </td><td><input type=\"text\" name=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<br><h1>Login to upload files</h1><br><form enctype=\"multipart/form-data\" action=\"/api/login\" method=\"POST\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = ui.CSRF(view.R).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<table class=\"table-auto table-padded\"><tbody class=\"text-right\"><tr title=\"Your username\"><td class=\"px-2\">Username </td><td><input type=\"text\" name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.LOGIN_FORM_USERNAME)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_login.templ`, Line: 25, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_login.templ`, Line: 29, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" required></td></tr><tr title=\"Your password\"><td class=\"px-2\">Password </td><td><input type=\"password\" name=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" required></td></tr><tr title=\"Your password\"><td class=\"px-2\">Password </td><td><input type=\"password\" name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.LOGIN_FORM_PASSWORD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_login.templ`, Line: 30, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_login.templ`, Line: 34, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" required></td></tr><tr title=\"Login\"><td colspan=\"2\"><input class=\"w-full\" type=\"submit\" value=\"Login\"></td></tr></tbody></table></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" required></td></tr><tr title=\"Login\"><td colspan=\"2\"><input class=\"w-full\" type=\"submit\" value=\"Login\"></td></tr></tbody></table></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

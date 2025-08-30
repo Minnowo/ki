@@ -12,7 +12,7 @@ import (
 // if it reads a string longer than length or reads an error it returns false
 func ReadFormString(length int, part *multipart.Part) (string, bool) {
 
-	var buf []byte = make([]byte, length+1)
+	var buf []byte = make([]byte, length)
 
 	n, err := part.Read(buf[:])
 

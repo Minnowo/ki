@@ -1,11 +1,14 @@
 package v1
 
 import (
+	"ki/src/api/cookies"
 	"ki/src/api/middleware"
 	"ki/src/config"
 	"ki/src/handlers/ratelimit"
 	"ki/src/handlers/storage"
 	"ki/src/handlers/user"
+	"ki/src/pkg/csrf"
+	"ki/src/pkg/proxy"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -19,6 +22,7 @@ type APIV1 struct {
 	fmap         storage.FileMap
 	fmapDChan    chan bool
 	rateLimiter  *ratelimit.RateLimiter
+	csrfHandler  *csrf.Handler
 	UserRegistry *user.UserRegistry
 }
 
@@ -26,6 +30,10 @@ func (a *APIV1) Init() {
 	a.fmap = storage.NewFileMap(config.AES_KEY_SIZE, bcrypt.DefaultCost)
 	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
 	a.rateLimiter = ratelimit.New(rate.Every(time.Millisecond*1000), 1)
+	a.csrfHandler = csrf.NewCSRFHandler(
+		cookies.BasicCookieStore{CookieName: config.CSRF_COOKIE},
+		csrf.ManualVerifyFormCSRF(true),
+	)
 
 	if a.UserRegistry == nil {
 		log.Panic().Msg("user registry is nil")
@@ -38,7 +46,8 @@ func (a *APIV1) Deinit() {
 
 func (a *APIV1) Register(r *mux.Router) {
 
-	r.Use(middleware.ProxyHeaders(config.TrustedProxies()))
+	r.Use(proxy.ProxyHeaders(config.TrustedProxies()))
+	r.Use(a.csrfHandler.Protect)
 
 	a.router = r
 

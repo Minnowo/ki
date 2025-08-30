@@ -5,6 +5,7 @@ import(
     "ki/src/config"
     "ki/src/handlers/str"
     "ki/src/ui/formkeys"
+    "ki/src/ui"
 )
 
 templ e2eOptions(view *PageUploadView ) {
@@ -72,6 +73,8 @@ templ PageUpload(view *PageUploadView) {
         <br/>
 
         <form enctype="multipart/form-data" action="/api/upload" method="POST">
+
+            @ui.CSRF(view.R)
 
             <table class="table-auto table-padded">
 

@@ -3,6 +3,7 @@ package v1
 import (
 	"ki/src/api"
 	"ki/src/config"
+	"ki/src/pkg/request"
 	"ki/src/ui/formkeys"
 	"ki/src/ui/pages"
 	"net/http"
@@ -27,6 +28,13 @@ func (a *APIV1) api_login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info().Msg("handling login call")
+
+	csrfTok := r.PostFormValue(formkeys.CSRF_FORM_FIELD)
+
+	if csrfTok == "" || !a.csrfHandler.VerifyStr(r, csrfTok) {
+		api.Done(w, http.StatusForbidden, "invalid csrf")
+		return
+	}
 
 	username := r.PostFormValue(formkeys.LOGIN_FORM_USERNAME)
 	password := r.PostFormValue(formkeys.LOGIN_FORM_PASSWORD)
@@ -63,8 +71,10 @@ func (a *APIV1) api_login(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		Name:     config.SESSION_COOKIE,
 		Value:    token,
-		Expires:  time.Now().Add(time.Hour * 24),
-		Secure:   true,
+		MaxAge:   int(config.SESSION_MAX_AGE.Seconds()),
+		Expires:  time.Now().Add(config.SESSION_MAX_AGE),
+		SameSite: http.SameSiteStrictMode,
+		Secure:   request.IsTLS(r),
 		HttpOnly: true,
 	})
 

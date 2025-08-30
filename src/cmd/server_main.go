@@ -21,10 +21,11 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	registryPath := c.Value("registry").(string)
 	bindAddr := c.Value("bind").(string)
 	port := c.Value("port").(int32)
-	trustedProxies := c.Value("trused-proxy").([]string)
 	maxUploadByes := c.Value("max-upload-size").(int64)
 
-	config.ParseTrustedProxies(trustedProxies)
+	if trustedProxies, ok := c.Value("trused-proxy").([]string); ok {
+		config.ParseTrustedProxies(trustedProxies)
+	}
 	config.SetMaxUploadSize(maxUploadByes)
 
 	var addr = fmt.Sprintf("%s:%d", bindAddr, port)

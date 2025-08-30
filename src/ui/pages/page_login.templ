@@ -1,5 +1,7 @@
 
 package pages
+import "ki/src/ui"
+
 
 import(
     "ki/src/ui/formkeys"
@@ -15,6 +17,8 @@ templ PageLogin(view *BaseView) {
         <br/>
 
         <form enctype="multipart/form-data" action="/api/login" method="POST">
+
+            @ui.CSRF(view.R)
 
             <table class="table-auto table-padded">
 

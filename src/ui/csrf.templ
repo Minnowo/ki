@@ -1,0 +1,18 @@
+package ui
+
+import (
+
+    "net/http"
+	"ki/src/ui/formkeys"
+	"ki/src/pkg/csrf"
+)
+
+
+
+templ CSRF(r *http.Request) {
+
+    <input type="hidden" name={ formkeys.CSRF_FORM_FIELD } value={ csrf.Token(r) } />
+
+}
+
+

@@ -7,6 +7,7 @@ import (
 	"ki/src/config"
 	"ki/src/handlers/form"
 	"ki/src/handlers/storage"
+	"ki/src/pkg/csrf"
 	"ki/src/ui/formkeys"
 	"ki/src/ui/pages"
 	"net/http"
@@ -44,6 +45,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	var password string = ""
 	var key *storage.FileID = nil
 	var finished bool = false
+	var didVerifyCSRF bool = false
 
 	startTime := time.Now()
 
@@ -69,6 +71,18 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 		var ok bool
 
 		switch part.FormName() {
+
+		case formkeys.CSRF_FORM_FIELD:
+
+			csrfTok, ok := form.ReadFormString(csrf.TOKEN_LENGTH_ENC, part)
+
+			if !ok || csrfTok == "" || !a.csrfHandler.VerifyStr(r, csrfTok) {
+				api.Done(w, http.StatusForbidden, "invalid csrf token")
+				return
+			}
+
+			didVerifyCSRF = true
+			break
 
 		case formkeys.UPLOAD_FORM_EXPIRE_DAYS:
 
@@ -116,6 +130,11 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case formkeys.UPLOAD_FORM_FILE:
+
+			if !didVerifyCSRF {
+				api.Done(w, http.StatusForbidden, "invalid csrf token")
+				return
+			}
 
 			if days == -1 || hours == -1 || minutes == -1 || downloads == -1 {
 				api.Donef(w, http.StatusBadRequest, "the file must be the last item in the form")
