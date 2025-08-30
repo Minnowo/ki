@@ -8,9 +8,11 @@ RUN curl -L -o /usr/local/bin/tailwind \
     chmod +x /usr/local/bin/tailwind
 
 
-COPY go.mod go.sum Makefile ./
-
-RUN make download-tools install-go
+COPY go.mod go.sum ./
+RUN go mod download
+	
+COPY Makefile ./
+RUN make download-tools
 
 COPY ./.git ./.git
 COPY ./src ./src

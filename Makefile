@@ -1,5 +1,5 @@
 
-VERSION := $(shell git describe --tags --abbrev=0 | cut -c 2-)
+VERSION := $(shell git describe --tags --abbrev=0)
 COMMIT  := $(shell git rev-parse --verify HEAD)
 DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -25,10 +25,6 @@ download-tools:
 	go install golang.org/x/tools/cmd/goimports@latest
 
 
-install-go:
-	go mod download
-
-
 generate:
 	$(TEMPL) generate
 	$(TAILWIND)  -i $(ASSETS)/tailwind.css -o $(ASSETS)/static/c/main.css
@@ -49,7 +45,6 @@ test-verbose: format generate
 
 test-clean: format generate
 	go clean -testcache
-
 
 build-site:
 	go build -ldflags "$(LDFLAGS)" -tags="$(TAGS)" -o $(SITE_DST) $(SITE_SRC)
