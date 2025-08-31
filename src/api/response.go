@@ -24,6 +24,10 @@ func Unauthorized(w http.ResponseWriter) {
 	Done(w, http.StatusUnauthorized, "401 unauthorized")
 }
 
+func Redirect(w http.ResponseWriter, r *http.Request, route string) {
+	http.Redirect(w, r, route, http.StatusSeeOther)
+}
+
 func Close(r io.ReadCloser, w http.ResponseWriter, code int, msg string) {
 	Done(w, code, msg)
 }

@@ -1,4 +1,4 @@
-package middleware
+package auth
 
 import (
 	"ki/src/config"
@@ -16,7 +16,7 @@ func expectContext(t *testing.T, username string, yes bool) func(w http.Response
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		name, ok := r.Context().Value(config.USER_CONTEXT_KEY).(string)
+		name, ok := GetUser(r)
 
 		if yes {
 			assert.True(t, ok, "expected user in context")
@@ -44,12 +44,12 @@ func TestAuthMiddleware(t *testing.T) {
 	r.PathPrefix("/no-auth").HandlerFunc(expectContext(t, username, false))
 
 	noAuth := r.NewRoute().Subrouter()
-	noAuth.Use(Auth(reg))
+	noAuth.Use(ParseAuth(config.SESSION_COOKIE, reg))
 	noAuth.PathPrefix("/no-require-auth1").HandlerFunc(expectContext(t, username, false))
 	noAuth.PathPrefix("/no-require-auth2").HandlerFunc(expectContext(t, username, true))
 
 	yesAuth := r.NewRoute().Subrouter()
-	yesAuth.Use(Auth(reg), RequireAuth())
+	yesAuth.Use(ParseAuth(config.SESSION_COOKIE, reg), RequireAuth())
 	yesAuth.PathPrefix("/yes-require-auth").HandlerFunc(expectContext(t, username, true))
 
 	t.Run("test no auth route", func(t *testing.T) {

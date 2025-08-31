@@ -277,6 +277,13 @@ func Token(r *http.Request) string {
 	return ""
 }
 
+// NewToken returns a new token, mainly for testing
+func NewToken() string {
+	token := make([]byte, TOKEN_LENGTH)
+	rand.Read(token)
+	return EncodeToken(token)
+}
+
 // EncodeToken encode the given CSRF token as a string
 func EncodeToken(token []byte) string {
 	return b64.EncodeToString(token)

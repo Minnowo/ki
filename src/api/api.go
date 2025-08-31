@@ -9,3 +9,8 @@ type API interface {
 	Init()
 	Deinit()
 }
+
+const (
+	ROUTE__LOGIN  = "/login"
+	ROUTE__LOGOUT = "/logout"
+)

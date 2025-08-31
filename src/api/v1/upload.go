@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"ki/src/api"
+	"ki/src/api/auth"
 	"ki/src/config"
 	"ki/src/handlers/form"
 	"ki/src/handlers/storage"
@@ -18,6 +19,12 @@ import (
 )
 
 func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
+
+	if !auth.IsAuthed(r) {
+		api.Redirect(w, r, api.ROUTE__LOGIN)
+		return
+	}
+
 	pages.PageUpload(&pages.PageUploadView{
 		BaseView: pages.NewBaseViewFromReq(r),
 	}).Render(r.Context(), w)

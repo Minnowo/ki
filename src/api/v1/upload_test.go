@@ -3,7 +3,9 @@ package v1
 import (
 	"bytes"
 	"io"
+	"ki/src/config"
 	"ki/src/handlers/user"
+	"ki/src/pkg/csrf"
 	"ki/src/ui/formkeys"
 	"mime/multipart"
 	"net/http"
@@ -25,6 +27,8 @@ func TestUpload(t *testing.T) {
 
 		var part io.Writer
 		var err error
+		token := csrf.NewToken()
+		assert.Nil(multipartWriter.WriteField(formkeys.CSRF_FORM_FIELD, token))
 		assert.Nil(multipartWriter.WriteField(formkeys.UPLOAD_FORM_EXPIRE_DAYS, "0"))
 		assert.Nil(multipartWriter.WriteField(formkeys.UPLOAD_FORM_EXPIRE_HOURS, "0"))
 		assert.Nil(multipartWriter.WriteField(formkeys.UPLOAD_FORM_EXPIRE_MINUTES, "5"))
@@ -38,6 +42,10 @@ func TestUpload(t *testing.T) {
 
 		r, err := http.NewRequest("POST", "/api/upload", &buf)
 		assert.Nil(err)
+		r.AddCookie(&http.Cookie{
+			Name:  config.CSRF_COOKIE,
+			Value: token,
+			Path:  "/"})
 
 		r.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 		w := httptest.NewRecorder()

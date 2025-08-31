@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"ki/src/api"
+	"ki/src/api/auth"
 	"ki/src/api/cookies"
 	"ki/src/api/middleware"
 	"ki/src/config"
@@ -48,12 +50,13 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	r.Use(proxy.ProxyHeaders(config.TrustedProxies()))
 	r.Use(a.csrfHandler.Protect)
+	r.Use(auth.ParseAuth(config.SESSION_COOKIE, a.UserRegistry))
 
 	a.router = r
 
 	ui := r.Methods("GET").Subrouter()
-	ui.HandleFunc("/login", a.ui_login)
-	ui.HandleFunc("/logout", a.ui_logout)
+	ui.HandleFunc(api.ROUTE__LOGIN, a.ui_login)
+	ui.HandleFunc(api.ROUTE__LOGOUT, a.ui_logout)
 	ui.HandleFunc("/upload", a.ui_upload)
 	ui.HandleFunc("/download", a.ui_download2)
 	ui.HandleFunc("/download/{fileIdHex}", a.ui_download).Name("download")
@@ -66,7 +69,7 @@ func (a *APIV1) Register(r *mux.Router) {
 	apiP.HandleFunc("/api/login", a.api_login)
 
 	apiAuth := apiP.NewRoute().Subrouter()
-	apiAuth.Use(middleware.Auth(a.UserRegistry), middleware.RequireAuth())
+	apiAuth.Use(auth.RequireAuth())
 	apiAuth.HandleFunc("/api/upload", a.file_upload)
 
 	apiG := api.Methods("GET").Subrouter()
