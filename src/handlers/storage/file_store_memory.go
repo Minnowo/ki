@@ -43,23 +43,22 @@ func (s *MemoryFileMetadataStore) WithFile(id FileID, mutate func(file KiFile) e
 
 	newFile := file.File.Clone()
 
-	if err := mutate(newFile); err != nil {
-		return nil, err
+	err := mutate(newFile)
+
+	if err != nil {
+		newFile = nil
+	} else {
+		file.File = newFile.Clone()
 	}
 
-	file.File = newFile.Clone()
-
-	// we can expire the copy here, but the caller expects to get a view of the file from inside their mutate method.
+	// We shouldn't aquire the s.Lock() here.
+	// Since ClearExpiredFiles might be waiting for the lock we currently have.
+	// If we lock s, then we would have a deadlock.
 	if file.File.IsExpired() {
-
-		if file.File.Clean() {
-			s.Lock()
-			delete(s.files, id)
-			s.Unlock()
-		}
+		file.File.Clean()
 	}
 
-	return newFile, nil
+	return newFile, err
 }
 
 func (s *MemoryFileMetadataStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {

@@ -26,7 +26,7 @@ var (
 	ErrFileNotFound error = fmt.Errorf("file does not exist")
 )
 
-// FileUploadHandler responsible for handles uploading and downloading files, and keeping them in a file store.
+// FileUploadHandler handles uploading and downloading files, and keeping them in a file store.
 type FileUploadHandler struct {
 	FileDir         string
 	bcryptCost      int
@@ -109,9 +109,6 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 	file, err := f.metadataStore.WithFile(key, func(file KiFile) error {
 
 		if file.IsExpired() {
-
-			file.Clean()
-
 			return ErrFileExpired
 		}
 
@@ -136,10 +133,6 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 
 		if file.Metadata().ActiveDownloads < 0 {
 			log.Error().Msg("active downloads < 0, this should be impossible!")
-		}
-
-		if file.IsExpired() {
-			file.Clean()
 		}
 
 		return nil
