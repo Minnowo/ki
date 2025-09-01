@@ -76,6 +76,7 @@ func (f *FileStore) RunExpireCheckLoop(interval time.Duration) {
 	go func() {
 
 		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 
 		for {
 			select {
