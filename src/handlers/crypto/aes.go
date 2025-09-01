@@ -31,6 +31,18 @@ func (k AESKeySize) Assert() {
 
 const PBKDF2_ROUNDS int = 4096
 
+type CipherCloseReader struct {
+	UnderStream  io.ReadCloser
+	CipherStream io.Reader
+}
+
+func (c *CipherCloseReader) Read(p []byte) (int, error) {
+	return c.CipherStream.Read(p)
+}
+func (c *CipherCloseReader) Close() error {
+	return c.UnderStream.Close()
+}
+
 func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey []byte, userKey string, w io.Writer) (io.Writer, error) {
 
 	key, err := pbkdf2.Key(sha256.New, userKey, serverKey, PBKDF2_ROUNDS, int(kSize))

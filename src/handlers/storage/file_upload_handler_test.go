@@ -2,14 +2,12 @@ package storage
 
 import (
 	"bytes"
-	"encoding/hex"
 	"ki/src/logging"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -107,19 +105,7 @@ func TestFileMap(t *testing.T) {
 					} else {
 						// read the file, count and assert it
 						sCount.Add(1)
-
-						if !assert.Equal(data, buf2.Bytes(), "using password of `%s`", password) {
-
-							// debugging. Found race condition where it would wipe the file.key
-							file, ok := filemap.metadataStore.GetFile(fileId)
-
-							log.Error().
-								Str("fileKey", hex.EncodeToString(file.key)).
-								Bool("hasFile", ok).
-								Int("keySize", int(filemap.keySize)).
-								Int("bcryptCost", int(filemap.bcryptCost)).
-								Msg("data mismatch")
-						}
+						assert.Equal(data, buf2.Bytes(), "using password of `%s`", password)
 					}
 
 					wg.Done()

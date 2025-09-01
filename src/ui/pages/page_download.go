@@ -6,6 +6,6 @@ import (
 
 type PageDownloadFileView struct {
 	BaseView
-	File   *storage.SafeFile
+	File   *storage.KiMetadata
 	FileID storage.FileID
 }

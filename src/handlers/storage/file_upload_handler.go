@@ -21,8 +21,9 @@ import (
 )
 
 var (
-	ErrNeedsAuth   error = fmt.Errorf("needs password to download")
-	ErrFileExpired error = fmt.Errorf("file has expired")
+	ErrNeedsAuth    error = fmt.Errorf("needs password to download")
+	ErrFileExpired  error = fmt.Errorf("file has expired")
+	ErrFileNotFound error = fmt.Errorf("file does not exist")
 )
 
 // FileUploadHandler responsible for handles uploading and downloading files, and keeping them in a file store.
@@ -92,7 +93,7 @@ func (f *FileUploadHandler) RunExpireCheckLoop(interval time.Duration) bool {
 	return true
 }
 
-func (f *FileUploadHandler) GetFile(key FileID) *SafeFile {
+func (f *FileUploadHandler) GetFile(key FileID) *KiMetadata {
 
 	v, ok := f.metadataStore.GetFileMetadata(key)
 
@@ -105,53 +106,65 @@ func (f *FileUploadHandler) GetFile(key FileID) *SafeFile {
 
 func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) error {
 
-	file, ok := f.metadataStore.GetFile(key)
+	file, err := f.metadataStore.WithFile(key, func(file KiFile) error {
 
-	if !ok {
-		return ErrFileExpired
-	}
+		if file.IsExpired() {
 
-	if file.UserSetPassword {
+			file.Clean()
 
-		err := bcrypt.CompareHashAndPassword(file.userPasswordHash, []byte(password))
+			return ErrFileExpired
+		}
 
-		if err != nil {
-
-			if err != bcrypt.ErrMismatchedHashAndPassword {
-				return err
-			}
-
+		if file.Metadata().UserSetPassword && !file.PasswordIsValid(password) {
 			return ErrNeedsAuth
 		}
+
+		file.Metadata().AddDownloader()
+
+		return nil
+	})
+
+	// file expired, or the user password was wrong
+	if err != nil {
+		return err
 	}
 
-	download, err := file.StartDownload(f.keySize, password)
+	// We need to clear the ActiveDownload we put from the above call
+	defer f.metadataStore.WithFile(key, func(file KiFile) error {
+
+		file.Metadata().SubDownloader()
+
+		if file.Metadata().ActiveDownloads < 0 {
+			log.Error().Msg("active downloads < 0, this should be impossible!")
+		}
+
+		if file.IsExpired() {
+			file.Clean()
+		}
+
+		return nil
+	})
+
+	fstream, err := file.NewReader(password)
 
 	if err != nil {
 		return err
 	}
 
-	// Update the metadata store
-	f.metadataStore.SetFile(key, file)
-
-	defer func() {
-		file.StopDownload()
-		download.File.Close()
-		f.metadataStore.SetFile(key, file)
-	}()
+	defer fstream.Close()
 
 	if r, ok := w.(http.ResponseWriter); ok {
 
-		r.Header().Set("Content-Length", strconv.FormatInt(file.Size, 10))
+		r.Header().Set("Content-Length", strconv.FormatInt(file.Metadata().Size, 10))
 
-		if download.Name == "" {
+		if file.Metadata().Name == "" {
 			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key.Hex()))
 		} else {
-			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", download.Name))
+			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", file.Metadata().Name))
 		}
 	}
 
-	n, err := io.Copy(w, download.Reader)
+	n, err := io.Copy(w, fstream)
 
 	log.Debug().Int64("n", n).Msg("wrote bytes to client")
 
@@ -250,11 +263,12 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 		}
 	}
 
-	fileId := f.metadataStore.StoreFile(&SafeFileEx{
+	fileId := f.metadataStore.StoreFile(&KiEncryptedFile{
 		userPasswordHash: passHash,
 		key:              key,
 		filePath:         file.Name(),
-		SafeFile: SafeFile{
+		keySize:          f.keySize,
+		KiMetadata: KiMetadata{
 			Sha512Hash:       sha512Hash.Sum(nil),
 			Sha256Hash:       sha256Hash.Sum(nil),
 			Sha1Hash:         sha1Hash.Sum(nil),
@@ -263,6 +277,7 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 			Size:             fileSize,
 			Name:             upload.Filename,
 			Downloads:        0,
+			ActiveDownloads:  0,
 			AllowedDownloads: upload.AllowedDownloads,
 			UserSetPassword:  didUserGivePassword,
 		},
