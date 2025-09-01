@@ -1,285 +1,123 @@
 package storage
 
 import (
-	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
-	"fmt"
-	"io"
-	"ki/src/config"
-	"net/http"
-	"os"
-	"strconv"
 	"sync"
-	"time"
-
-	"ki/src/handlers/crypto"
 
 	"github.com/rs/zerolog/log"
-	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrNeedsAuth   error = fmt.Errorf("needs password to download")
-	ErrFileExpired error = fmt.Errorf("file has expired")
-)
+// FileStore handles saving the uploaded file information.
+// Depending on the implementation of the store, modifying the data of the file pointer might also update the data in the store.
+// To ensure the data is up-to-date in the store, call SetFileMetadata after modifying the data.
+type FileStore interface {
 
-type FileStore struct {
-	FileDir         string
-	bcryptCost      int
-	keySize         crypto.AESKeySize
-	metadataStore   FileMetadataStore
-	daemonCloseChan chan bool
-	l               sync.RWMutex
+	// GetFileMetadata reads a copy of the file's metadata for the given key.
+	// Never returns an expired file's metadata.
+	GetFileMetadata(id FileID) (*SafeFile, bool)
+
+	// GetFile reads a copy of the file for the given key.
+	// Never returns an expired file.
+	GetFile(id FileID) (*SafeFileEx, bool)
+
+	// SetFileMetadata create or replace some metadata with the given key.
+	SetFile(id FileID, file *SafeFileEx)
+
+	// StoreFileMetadata creates a new FileID and saves associates the metadata with it.
+	StoreFile(file *SafeFileEx) FileID
+
+	// ClearExpiredFiles deletes any files from the store and disk which have been expired.
+	ClearExpiredFiles()
 }
 
-func NewFileStore(bcryptCost int) FileStore {
-	return FileStore{
-		metadataStore:   NewMemoryFileMetadataStore(),
-		keySize:         config.AES_KEY_SIZE,
-		bcryptCost:      bcryptCost,
-		daemonCloseChan: nil,
+// MemoryFileMetadataStore a simple file store which uses a hashmap.
+type MemoryFileMetadataStore struct {
+	sync.RWMutex
+	files map[FileID]*SafeFileEx
+}
+
+func NewMemoryFileMetadataStore() *MemoryFileMetadataStore {
+	return &MemoryFileMetadataStore{
+		files: make(map[FileID]*SafeFileEx),
 	}
 }
 
-func (f *FileStore) ShutdownExpireCheckLoop() {
+func (s *MemoryFileMetadataStore) GetFile(id FileID) (*SafeFileEx, bool) {
 
-	f.l.Lock()
-	defer f.l.Unlock()
-
-	if f.daemonCloseChan == nil {
-		return
-	}
-
-	f.daemonCloseChan <- true
-	close(f.daemonCloseChan)
-	f.daemonCloseChan = nil
-}
-
-func (f *FileStore) RunExpireCheckLoop(interval time.Duration) {
-
-	f.l.Lock()
-	defer f.l.Unlock()
-
-	if f.daemonCloseChan != nil {
-		return
-	}
-
-	done := make(chan bool)
-
-	f.daemonCloseChan = done
-
-	log.Debug().Msg("file expire check daemon starting")
-
-	go func() {
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-done:
-				log.Debug().Msg("file expire check daemon done")
-				return
-
-			case t := <-ticker.C:
-
-				f.metadataStore.ClearExpiredFiles()
-
-				log.Debug().Str("time", t.String()).Msg("clearing out expired files")
-			}
-		}
-	}()
-}
-
-func (f *FileStore) GetFile(key FileID) *SafeFile {
-
-	v, ok := f.metadataStore.GetFileMetadata(key)
+	s.RLock()
+	file, ok := s.files[id]
+	s.RUnlock()
 
 	if !ok {
-		return nil
+		return nil, false
 	}
 
-	v.RLock()
-	defer v.RUnlock()
+	if file.IsExpired() {
 
-	if v.IsExpired() {
-		return nil
+		file.Clean()
+
+		return nil, false
 	}
 
-	return v.SafeFile.Copy()
+	return file, true
 }
 
-func (f *FileStore) ReadFile(w io.Writer, key FileID, password string) error {
+func (s *MemoryFileMetadataStore) GetFileMetadata(id FileID) (*SafeFile, bool) {
 
-	file, ok := f.metadataStore.GetFileMetadata(key)
+	file, ok := s.GetFile(id)
 
-	if !ok || file.CleanIfExpired() {
-		return ErrFileExpired
+	if !ok {
+		return nil, false
 	}
 
-	if file.UserSetPassword {
-
-		err := bcrypt.CompareHashAndPassword(file.userPasswordHash, []byte(password))
-
-		if err != nil {
-
-			if err != bcrypt.ErrMismatchedHashAndPassword {
-				return err
-			}
-
-			return ErrNeedsAuth
-		}
-	}
-
-	download, err := file.StartDownload(f.keySize, password)
-
-	if err != nil {
-		return err
-	}
-
-	defer file.StopDownload()
-	defer download.File.Close()
-
-	if r, ok := w.(http.ResponseWriter); ok {
-
-		r.Header().Set("Content-Length", strconv.FormatInt(file.Size, 10))
-
-		if download.Name == "" {
-			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key.Hex()))
-		} else {
-			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", download.Name))
-		}
-	}
-
-	n, err := io.Copy(w, download.Reader)
-
-	log.Debug().Int64("n", n).Msg("wrote bytes to client")
-
-	if err != nil {
-		log.Warn().Err(err).Msg("error while sending someone a file")
-		return err
-	}
-
-	return nil
+	return file.SafeFile.Copy(), true
 }
 
-func (f *FileStore) SaveFile(upload FileUpload) (*FileID, error) {
-	return f.SaveFileWithProgress(upload, nil)
-}
+func (s *MemoryFileMetadataStore) StoreFile(file *SafeFileEx) FileID {
 
-func (f *FileStore) SaveFileWithProgress(upload FileUpload, update func(int)) (*FileID, error) {
+	s.Lock()
+	defer s.Unlock()
 
-	if err := upload.Valid(); err != nil {
-		return nil, err
-	}
-
-	file, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
-
-	if err == nil {
-		defer file.Close()
-	} else {
-		return nil, err
-	}
-
-	didUserGivePassword := upload.Password != ""
-
-	key := make([]byte, f.keySize)
-	rand.Read(key)
-
-	var aesw io.Writer
-
-	if didUserGivePassword {
-		aesw, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, upload.Password, file)
-	} else {
-		aesw, err = crypto.GetStreamEncryptionWriter(key, file)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	sha512Hash := sha512.New()
-	sha256Hash := sha256.New()
-	sha1Hash := sha1.New()
-	md5Hash := md5.New()
-
-	fileSize := int64(0)
-	buffer := make([]byte, 4*config.KB) // seems to be the buffer size of the http request
+	var fileId FileID
 	for {
+		rand.Read(fileId[:])
 
-		n, err := upload.Read(buffer)
-
-		if n > 0 {
-			fileSize += int64(n)
-			aesw.Write(buffer[0:n])
-			sha512Hash.Write(buffer[0:n])
-			sha256Hash.Write(buffer[0:n])
-			sha1Hash.Write(buffer[0:n])
-			md5Hash.Write(buffer[0:n])
-			if update != nil {
-				update(n)
-			}
-		}
-
-		if err != nil {
-
-			if err == io.EOF {
-				break
-			}
-
-			file.Close()
-			os.Remove(file.Name())
-
-			log.Info().Err(err).Msg("returning error from SaveFile")
-			return nil, err
-		}
-
-		if n == 0 {
+		if _, ok := s.files[fileId]; !ok {
 			break
 		}
 	}
 
-	var passHash []byte = nil
+	s.files[fileId] = file
 
-	if didUserGivePassword {
+	return fileId
+}
 
-		passHash, err = bcrypt.GenerateFromPassword([]byte(upload.Password), f.bcryptCost)
+func (s *MemoryFileMetadataStore) SetFile(id FileID, file *SafeFileEx) {
 
-		if err != nil {
-			return nil, err
+	s.Lock()
+	defer s.Unlock()
+
+	s.files[id] = file
+}
+
+func (s *MemoryFileMetadataStore) ClearExpiredFiles() {
+
+	s.Lock()
+	defer s.Unlock()
+
+	expired := 0
+
+	for key, value := range s.files {
+
+		if value.IsExpired() && value.Clean() {
+
+			delete(s.files, key)
+
+			expired++
 		}
 	}
 
-	f.l.Lock()
-	defer f.l.Unlock()
-
-	fileId := f.metadataStore.StoreFileMetadata(&SafeFileEx{
-		userPasswordHash: passHash,
-		key:              key,
-		filePath:         file.Name(),
-		SafeFile: SafeFile{
-			Sha512Hash:       sha512Hash.Sum(nil),
-			Sha256Hash:       sha256Hash.Sum(nil),
-			Sha1Hash:         sha1Hash.Sum(nil),
-			Md5Hash:          md5Hash.Sum(nil),
-			Expires:          time.Now().Add(upload.ExpiresIn),
-			Size:             fileSize,
-			Name:             upload.Filename,
-			Downloads:        0,
-			AllowedDownloads: upload.AllowedDownloads,
-			UserSetPassword:  didUserGivePassword,
-		},
-	})
-
-	log.Info().
-		Str("name", file.Name()).
-		Str("expires", upload.ExpiresIn.String()).
-		Int("allowedDownloads", upload.AllowedDownloads).
-		Int64("size", fileSize).
-		Msg("saved new file")
-
-	return &fileId, nil
+	if expired > 0 {
+		log.Info().Int("count", expired).Msg("removed expired files")
+	}
 }

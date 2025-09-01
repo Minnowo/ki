@@ -111,7 +111,7 @@ func TestFileMap(t *testing.T) {
 						if !assert.Equal(data, buf2.Bytes(), "using password of `%s`", password) {
 
 							// debugging. Found race condition where it would wipe the file.key
-							file, ok := filemap.metadataStore.GetFileMetadata(fileId)
+							file, ok := filemap.metadataStore.GetFile(fileId)
 
 							log.Error().
 								Str("fileKey", hex.EncodeToString(file.key)).

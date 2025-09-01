@@ -21,7 +21,7 @@ import (
 
 type APIV1 struct {
 	router       *mux.Router
-	fileStore    storage.FileStore
+	fileStore    storage.FileUploadHandler
 	rateLimiter  *ratelimit.RateLimiter
 	csrfHandler  *csrf.Handler
 	UserRegistry *user.UserRegistry

@@ -135,9 +135,8 @@ func (f *SafeFileEx) Cleaned() bool {
 	return f.wasCleaned
 }
 
-// if the file was deleted does nothing
-// otherwise expires the file and if there are no active downloads deletes the file.
-// returns true if cleaned.
+// Clean expires the file (if not already), and attempts to delete the file from disk.
+// returns true if the file was deleted from disk.
 func (f *SafeFileEx) Clean() bool {
 
 	f.Lock()
@@ -177,24 +176,4 @@ func (f *SafeFileEx) Clean() bool {
 		return true
 	}
 	return false
-}
-
-// checks if the file is expired and calls clean if it is
-// returns true if expired otherwise false
-func (f *SafeFileEx) CleanIfExpired() bool {
-
-	f.RLock()
-	isExpired := f.IsExpired()
-	wasCleaned := f.Cleaned()
-	f.RUnlock()
-
-	if !isExpired {
-		return false
-	}
-
-	if !wasCleaned {
-		f.Clean()
-	}
-
-	return true
 }

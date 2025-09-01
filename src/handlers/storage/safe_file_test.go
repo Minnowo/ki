@@ -43,7 +43,6 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 
 	// should be expired now
 	assert.True(file.IsExpired(), "expected to be expired")
-	assert.True(file.CleanIfExpired(), "expected to be expired")
 
 	// shouldn't be cleaned yet
 	assert.False(file.Clean(), "shouldn't be clean because still downloading")
