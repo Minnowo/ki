@@ -21,16 +21,15 @@ import (
 
 type APIV1 struct {
 	router       *mux.Router
-	fmap         storage.FileMap
-	fmapDChan    chan bool
+	fileStore    storage.FileStore
 	rateLimiter  *ratelimit.RateLimiter
 	csrfHandler  *csrf.Handler
 	UserRegistry *user.UserRegistry
 }
 
 func (a *APIV1) Init() {
-	a.fmap = storage.NewFileMap(config.AES_KEY_SIZE, bcrypt.DefaultCost)
-	a.fmapDChan = storage.NewFileMapExpireCheckD(time.Minute, &a.fmap)
+	a.fileStore = storage.NewFileStore(bcrypt.DefaultCost)
+	a.fileStore.RunExpireCheckLoop(time.Minute)
 	a.rateLimiter = ratelimit.New(rate.Every(time.Millisecond*1000), 1)
 	a.csrfHandler = csrf.NewCSRFHandler(
 		cookies.BasicCookieStore{CookieName: config.CSRF_COOKIE},
@@ -43,7 +42,7 @@ func (a *APIV1) Init() {
 }
 
 func (a *APIV1) Deinit() {
-	a.fmapDChan <- true
+	a.fileStore.ShutdownExpireCheckLoop()
 }
 
 func (a *APIV1) Register(r *mux.Router) {

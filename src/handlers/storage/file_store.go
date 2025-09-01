@@ -26,25 +26,76 @@ var (
 	ErrFileExpired error = fmt.Errorf("file has expired")
 )
 
-type FileMap struct {
-	TempDir    string
-	bcryptCost int
-	keySize    crypto.AESKeySize
-	files      map[FileID]*SafeFileEx
-	l          sync.RWMutex
+type FileStore struct {
+	FileDir         string
+	bcryptCost      int
+	keySize         crypto.AESKeySize
+	metadataStore   FileMetadataStore
+	daemonCloseChan chan bool
+	l               sync.RWMutex
 }
 
-func NewFileMap(keySize crypto.AESKeySize, bcryptCost int) FileMap {
-	return FileMap{
-		files:      make(map[FileID]*SafeFileEx),
-		keySize:    keySize,
-		bcryptCost: bcryptCost,
+func NewFileStore(bcryptCost int) FileStore {
+	return FileStore{
+		metadataStore:   NewMemoryFileMetadataStore(),
+		keySize:         config.AES_KEY_SIZE,
+		bcryptCost:      bcryptCost,
+		daemonCloseChan: nil,
 	}
 }
 
-func (f *FileMap) GetFile(key FileID) *SafeFile {
+func (f *FileStore) ShutdownExpireCheckLoop() {
 
-	v, ok := f.get(key)
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	if f.daemonCloseChan == nil {
+		return
+	}
+
+	f.daemonCloseChan <- true
+	close(f.daemonCloseChan)
+	f.daemonCloseChan = nil
+}
+
+func (f *FileStore) RunExpireCheckLoop(interval time.Duration) {
+
+	f.l.Lock()
+	defer f.l.Unlock()
+
+	if f.daemonCloseChan != nil {
+		return
+	}
+
+	done := make(chan bool)
+
+	f.daemonCloseChan = done
+
+	log.Debug().Msg("file expire check daemon starting")
+
+	go func() {
+
+		ticker := time.NewTicker(interval)
+
+		for {
+			select {
+			case <-done:
+				log.Debug().Msg("file expire check daemon done")
+				return
+
+			case t := <-ticker.C:
+
+				f.metadataStore.ClearExpiredFiles()
+
+				log.Debug().Str("time", t.String()).Msg("clearing out expired files")
+			}
+		}
+	}()
+}
+
+func (f *FileStore) GetFile(key FileID) *SafeFile {
+
+	v, ok := f.metadataStore.GetFileMetadata(key)
 
 	if !ok {
 		return nil
@@ -60,42 +111,9 @@ func (f *FileMap) GetFile(key FileID) *SafeFile {
 	return v.SafeFile.Copy()
 }
 
-func (f *FileMap) RemoveExpired() {
+func (f *FileStore) ReadFile(w io.Writer, key FileID, password string) error {
 
-	f.l.RLock()
-
-	expired := make([]FileID, 0, len(f.files))
-
-	for key, value := range f.files {
-		if value.CleanIfExpired() && value.Clean() {
-			expired = append(expired, key)
-		}
-	}
-
-	f.l.RUnlock()
-
-	if len(expired) <= 0 {
-		return
-	}
-
-	log.Info().Int("count", len(expired)).Msg("removing expired files")
-
-	f.l.Lock()
-	defer f.l.Unlock()
-
-	for _, key := range expired {
-
-		_, ok := f.files[key]
-
-		if ok {
-			delete(f.files, key)
-		}
-	}
-}
-
-func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
-
-	file, ok := f.get(key)
+	file, ok := f.metadataStore.GetFileMetadata(key)
 
 	if !ok || file.CleanIfExpired() {
 		return ErrFileExpired
@@ -147,17 +165,17 @@ func (f *FileMap) ReadFile(w io.Writer, key FileID, password string) error {
 	return nil
 }
 
-func (f *FileMap) SaveFile(upload SafeFileUpload, r io.Reader) (*FileID, error) {
-	return f.SaveFileWithProgress(upload, r, nil)
+func (f *FileStore) SaveFile(upload FileUpload) (*FileID, error) {
+	return f.SaveFileWithProgress(upload, nil)
 }
 
-func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, update func(int)) (*FileID, error) {
+func (f *FileStore) SaveFileWithProgress(upload FileUpload, update func(int)) (*FileID, error) {
 
 	if err := upload.Valid(); err != nil {
 		return nil, err
 	}
 
-	file, err := os.CreateTemp(f.TempDir, config.FILENAME_PREFIX+"*")
+	file, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
 
 	if err == nil {
 		defer file.Close()
@@ -191,7 +209,7 @@ func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, updat
 	buffer := make([]byte, 4*config.KB) // seems to be the buffer size of the http request
 	for {
 
-		n, err := r.Read(buffer)
+		n, err := upload.Read(buffer)
 
 		if n > 0 {
 			fileSize += int64(n)
@@ -237,16 +255,7 @@ func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, updat
 	f.l.Lock()
 	defer f.l.Unlock()
 
-	var fileId FileID
-	for {
-		rand.Read(fileId[:])
-
-		if _, ok := f.files[fileId]; !ok {
-			break
-		}
-	}
-
-	f.files[fileId] = &SafeFileEx{
+	fileId := f.metadataStore.StoreFileMetadata(&SafeFileEx{
 		userPasswordHash: passHash,
 		key:              key,
 		filePath:         file.Name(),
@@ -262,7 +271,7 @@ func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, updat
 			AllowedDownloads: upload.AllowedDownloads,
 			UserSetPassword:  didUserGivePassword,
 		},
-	}
+	})
 
 	log.Info().
 		Str("name", file.Name()).
@@ -272,11 +281,4 @@ func (f *FileMap) SaveFileWithProgress(upload SafeFileUpload, r io.Reader, updat
 		Msg("saved new file")
 
 	return &fileId, nil
-}
-
-func (f *FileMap) get(key FileID) (*SafeFileEx, bool) {
-	f.l.RLock()
-	defer f.l.RUnlock()
-	v, ok := f.files[key]
-	return v, ok
 }

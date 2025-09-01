@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"encoding/hex"
-	"ki/src/handlers/crypto"
 	"ki/src/logging"
 	"sync"
 	"sync/atomic"
@@ -24,21 +23,22 @@ func TestFileMap(t *testing.T) {
 		assert := assert.New(t)
 		tempDir := t.TempDir()
 
-		filemap := NewFileMap(crypto.AES256, bcrypt.MinCost)
-		filemap.TempDir = tempDir
+		filemap := NewFileStore(bcrypt.MinCost)
+		filemap.FileDir = tempDir
 
 		data := []byte("this is my file data")
 
 		for _, password := range []string{"", "password"} {
 
-			upload := SafeFileUpload{
+			upload := FileUpload{
 				ExpiresIn:        time.Duration(1) * time.Hour,
 				Filename:         "test.txt",
 				Password:         password,
 				AllowedDownloads: 1,
+				FStream:          bytes.NewReader(data),
 			}
 
-			fileId, err := filemap.SaveFile(upload, bytes.NewReader(data))
+			fileId, err := filemap.SaveFile(upload)
 
 			assert.Nil(err, "using password of `%s`", password)
 			assert.NotNil(fileId)
@@ -50,7 +50,7 @@ func TestFileMap(t *testing.T) {
 			assert.NotNil(filemap.ReadFile(&buf2, *fileId, password), "file should be expired")
 		}
 
-		filemap.RemoveExpired()
+		filemap.metadataStore.ClearExpiredFiles()
 	})
 
 	t.Run("test read & write using threads", func(t *testing.T) {
@@ -58,8 +58,8 @@ func TestFileMap(t *testing.T) {
 		assert := assert.New(t)
 		tempDir := t.TempDir()
 
-		filemap := NewFileMap(crypto.AES256, bcrypt.MinCost)
-		filemap.TempDir = tempDir
+		filemap := NewFileStore(bcrypt.MinCost)
+		filemap.FileDir = tempDir
 
 		data := []byte("this is my file data")
 
@@ -73,14 +73,15 @@ func TestFileMap(t *testing.T) {
 			failN := n - successN
 
 			// upload the file with the set limits
-			upload := SafeFileUpload{
+			upload := FileUpload{
 				ExpiresIn:        time.Duration(1) * time.Hour,
 				Filename:         "test.txt",
 				Password:         password,
 				AllowedDownloads: successN, // limit number of downloads
+				FStream:          bytes.NewReader(data),
 			}
 
-			fileIdPtr, err := filemap.SaveFile(upload, bytes.NewReader(data))
+			fileIdPtr, err := filemap.SaveFile(upload)
 
 			assert.Nil(err, "using password of `%s`", password)
 			assert.NotNil(fileIdPtr)
@@ -110,7 +111,7 @@ func TestFileMap(t *testing.T) {
 						if !assert.Equal(data, buf2.Bytes(), "using password of `%s`", password) {
 
 							// debugging. Found race condition where it would wipe the file.key
-							file, ok := filemap.files[fileId]
+							file, ok := filemap.metadataStore.GetFileMetadata(fileId)
 
 							log.Error().
 								Str("fileKey", hex.EncodeToString(file.key)).
@@ -129,6 +130,6 @@ func TestFileMap(t *testing.T) {
 			assert.Equal(int32(successN), sCount.Load(), "expected this many fails")
 		}
 
-		filemap.RemoveExpired()
+		filemap.metadataStore.ClearExpiredFiles()
 	})
 }

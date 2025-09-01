@@ -158,7 +158,8 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			upload := storage.SafeFileUpload{
+			upload := storage.FileUpload{
+				FStream:          part,
 				AllowedDownloads: int(downloads),
 				Filename:         strings.TrimSpace(part.FileName()),
 				Password:         password,
@@ -175,7 +176,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				rc.SetWriteDeadline(deadline)
 			}
 
-			key, err = a.fmap.SaveFileWithProgress(upload, part, timeoutHelper)
+			key, err = a.fileStore.SaveFileWithProgress(upload, timeoutHelper)
 
 			if err != nil {
 

@@ -2,9 +2,8 @@ package storage
 
 import (
 	"crypto/rand"
-	"fmt"
 	"io"
-	"ki/src/config"
+	"ki/src/handlers/bytes"
 	"ki/src/handlers/crypto"
 	"os"
 	"sync"
@@ -12,34 +11,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 )
-
-var (
-	ErrInvalidUpload error = fmt.Errorf("upload is invalid")
-)
-
-type SafeFileUpload struct {
-	ExpiresIn        time.Duration
-	AllowedDownloads int
-	Filename         string
-	Password         string
-}
-
-func (f *SafeFileUpload) Valid() error {
-
-	if f.ExpiresIn.Milliseconds() < time.Minute.Milliseconds() {
-		return fmt.Errorf("%w: expirey time must be at least 1 minute", ErrInvalidUpload)
-	}
-
-	if f.AllowedDownloads <= 0 {
-		return fmt.Errorf("%w: must have at least 1 download", ErrFileExpired)
-	}
-
-	if len(f.Password) > config.MAX_PASSWORD_LENGTH {
-		return fmt.Errorf("%w: password length must be less than %d", ErrFileExpired, config.MAX_PASSWORD_LENGTH)
-	}
-
-	return nil
-}
 
 type SafeFile struct {
 	Sha512Hash       []byte
@@ -60,22 +31,18 @@ func (f *SafeFile) IsExpired() bool {
 
 // deep copies this file
 func (f *SafeFile) Copy() *SafeFile {
-	var sf SafeFile
-	sf.Sha512Hash = make([]byte, len(f.Sha512Hash))
-	copy(sf.Sha512Hash, f.Sha512Hash)
-	sf.Sha256Hash = make([]byte, len(f.Sha256Hash))
-	copy(sf.Sha256Hash, f.Sha256Hash)
-	sf.Sha1Hash = make([]byte, len(f.Sha1Hash))
-	copy(sf.Sha1Hash, f.Sha1Hash)
-	sf.Md5Hash = make([]byte, len(f.Md5Hash))
-	copy(sf.Md5Hash, f.Md5Hash)
-	sf.Size = f.Size
-	sf.Expires = f.Expires
-	sf.AllowedDownloads = f.AllowedDownloads
-	sf.Downloads = f.Downloads
-	sf.Name = f.Name
-	sf.UserSetPassword = f.UserSetPassword
-	return &sf
+	return &SafeFile{
+		Sha512Hash:       bytes.CopyBytes(f.Sha512Hash),
+		Sha256Hash:       bytes.CopyBytes(f.Sha256Hash),
+		Sha1Hash:         bytes.CopyBytes(f.Sha1Hash),
+		Md5Hash:          bytes.CopyBytes(f.Md5Hash),
+		Size:             f.Size,
+		Expires:          f.Expires,
+		AllowedDownloads: f.AllowedDownloads,
+		Downloads:        f.Downloads,
+		Name:             f.Name,
+		UserSetPassword:  f.UserSetPassword,
+	}
 }
 
 type SafeFileEx struct {

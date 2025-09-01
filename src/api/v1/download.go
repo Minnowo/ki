@@ -45,7 +45,7 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file := a.fmap.GetFile(*key)
+	file := a.fileStore.GetFile(*key)
 
 	if file == nil {
 		api.NotFound(w)
@@ -74,7 +74,7 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 		password = ""
 	}
 
-	err := a.fmap.ReadFile(w, *key, password)
+	err := a.fileStore.ReadFile(w, *key, password)
 
 	if err == storage.ErrNeedsAuth {
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)

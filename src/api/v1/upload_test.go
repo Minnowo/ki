@@ -54,7 +54,7 @@ func TestUpload(t *testing.T) {
 
 		apiv.Init()
 		apiv.Register(mux.NewRouter())
-		apiv.fmap.TempDir = t.TempDir()
+		apiv.fileStore.FileDir = t.TempDir()
 		apiv.file_upload(w, r)
 
 		// read the full stream
