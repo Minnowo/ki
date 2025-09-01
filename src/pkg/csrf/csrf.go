@@ -31,7 +31,6 @@ type contextKey struct {
 }
 
 var (
-	b64             = base64.URLEncoding
 	ctxTokenKey     = &contextKey{"token"}
 	ctxFieldNameKey = &contextKey{"fieldname"}
 	ctxErrorKey     = &contextKey{"error"}
@@ -286,12 +285,12 @@ func NewToken() string {
 
 // EncodeToken encode the given CSRF token as a string
 func EncodeToken(token []byte) string {
-	return b64.EncodeToString(token)
+	return base64.URLEncoding.EncodeToString(token)
 }
 
 // DecodeToken decodes the given CSRF token
 func DecodeToken(token string) ([]byte, error) {
-	return b64.DecodeString(token)
+	return base64.URLEncoding.DecodeString(token)
 }
 
 // FieldName returns the CSRF form field name.

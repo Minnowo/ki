@@ -131,7 +131,7 @@ func TestCSRF(t *testing.T) {
 	t.Run("with header token", testRequest(
 		okStore,
 		func(assert *require.Assertions, r *http.Request) {
-			token, err := b64.DecodeString(Token(r))
+			token, err := DecodeToken(Token(r))
 			assert.NoError(err)
 			assert.Equal(okToken, token)
 			r.Method = "POST"
@@ -145,7 +145,7 @@ func TestCSRF(t *testing.T) {
 	t.Run("https with header token", testRequest(
 		okStore,
 		func(assert *require.Assertions, r *http.Request) {
-			token, err := b64.DecodeString(Token(r))
+			token, err := DecodeToken(Token(r))
 			assert.NoError(err)
 			assert.Equal(okToken, token)
 			r.Method = "POST"
@@ -197,10 +197,10 @@ func TestCSRF(t *testing.T) {
 		func(_ *require.Assertions, r *http.Request) {
 			r.Method = "POST"
 			token := Token(r)
-			m, _ := b64.DecodeString(token)
+			m, _ := DecodeToken(token)
 			m[18] ^= m[18]
 
-			r.Header.Set("X-CSRF-Token", b64.EncodeToString(m))
+			r.Header.Set("X-CSRF-Token", EncodeToken(m))
 		},
 		func(assert *require.Assertions, w *httptest.ResponseRecorder, err error) {
 			assert.Equal(412, w.Result().StatusCode)
@@ -272,7 +272,7 @@ func TestCSRF(t *testing.T) {
 	t.Run("https origin, no referer", testRequest(
 		okStore,
 		func(assert *require.Assertions, r *http.Request) {
-			token, err := b64.DecodeString(Token(r))
+			token, err := DecodeToken(Token(r))
 			assert.NoError(err)
 			assert.Equal(okToken, token)
 			r.Method = "POST"
