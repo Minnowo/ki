@@ -30,7 +30,7 @@ func ParseAuth(sessionCookie string, userReg *user.UserRegistry) func(next http.
 				if ok {
 					log.Debug().Str("user", username).Msg("valid session")
 
-					ctx := context.WithValue(context.Background(), ctxUserKey, username)
+					ctx := context.WithValue(r.Context(), ctxUserKey, username)
 
 					r = r.WithContext(ctx)
 				} else {
