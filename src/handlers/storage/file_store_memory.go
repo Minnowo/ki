@@ -12,8 +12,6 @@ type FileLock struct {
 	sync.RWMutex
 }
 
-func (f *FileLock) DoExpire() {
-}
 
 // MemoryFileMetadataStore a simple file store which uses a hashmap.
 // All file metadata is stored in memory.
