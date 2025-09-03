@@ -11,6 +11,7 @@ import (
 	"ki/src/handlers/user"
 	"ki/src/pkg/csrf"
 	"ki/src/pkg/proxy"
+	"path"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -29,7 +30,7 @@ type APIV1 struct {
 
 func (a *APIV1) Init() {
 
-	store, err := storage.NewBBoltFileStore("./data.db")
+	store, err := storage.NewBBoltFileStore(path.Join(config.FileStorageDir(), "data.db"))
 
 	if err != nil {
 		log.Panic().Err(err).Msg("could not create file store")

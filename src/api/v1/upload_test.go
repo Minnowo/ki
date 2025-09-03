@@ -18,6 +18,9 @@ import (
 
 func TestUpload(t *testing.T) {
 
+	tempDir := t.TempDir()
+	config.SetFileStorageDir(tempDir)
+
 	t.Run("working upload", func(t *testing.T) {
 		assert := assert.New(t)
 
