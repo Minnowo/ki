@@ -21,8 +21,7 @@ func TestFileMap(t *testing.T) {
 		assert := assert.New(t)
 		tempDir := t.TempDir()
 
-		filemap := NewFileStore(bcrypt.MinCost)
-		filemap.FileDir = tempDir
+		filemap := NewFileStore(tempDir, NewMemoryFileMetadataStore(), bcrypt.MinCost)
 
 		data := []byte("this is my file data")
 
@@ -56,8 +55,7 @@ func TestFileMap(t *testing.T) {
 		assert := assert.New(t)
 		tempDir := t.TempDir()
 
-		filemap := NewFileStore(bcrypt.MinCost)
-		filemap.FileDir = tempDir
+		filemap := NewFileStore(tempDir, NewMemoryFileMetadataStore(), bcrypt.MinCost)
 
 		data := []byte("this is my file data")
 

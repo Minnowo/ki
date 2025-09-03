@@ -8,10 +8,9 @@ import (
 )
 
 type FileLock struct {
-	File KiFile
+	File *KiFile
 	sync.RWMutex
 }
-
 
 // MemoryFileMetadataStore a simple file store which uses a hashmap.
 // All file metadata is stored in memory.
@@ -26,7 +25,7 @@ func NewMemoryFileMetadataStore() *MemoryFileMetadataStore {
 	}
 }
 
-func (s *MemoryFileMetadataStore) WithFile(id FileID, mutate func(file KiFile) error) (KiFile, error) {
+func (s *MemoryFileMetadataStore) WithFile(id FileID, mutate func(file *KiFile) error) (*KiFile, error) {
 
 	s.RLock()
 	file, ok := s.files[id]
@@ -79,11 +78,20 @@ func (s *MemoryFileMetadataStore) GetFileMetadata(id FileID) (*KiMetadata, bool)
 	return file.File.Metadata().Clone(), true
 }
 
-func (s *MemoryFileMetadataStore) StoreFileCopy(file KiFile) FileID {
+func (s *MemoryFileMetadataStore) StoreFileCopy(file *KiFile) (FileID, error) {
+
+	if file == nil {
+		return FileID{}, errNilPtr
+	}
+
 	return s.StoreFile(file.Clone())
 }
 
-func (s *MemoryFileMetadataStore) StoreFile(file KiFile) FileID {
+func (s *MemoryFileMetadataStore) StoreFile(file *KiFile) (FileID, error) {
+
+	if file == nil {
+		return FileID{}, errNilPtr
+	}
 
 	s.Lock()
 	defer s.Unlock()
@@ -99,7 +107,7 @@ func (s *MemoryFileMetadataStore) StoreFile(file KiFile) FileID {
 
 	s.files[fileId] = &FileLock{File: file}
 
-	return fileId
+	return fileId, nil
 }
 
 func (s *MemoryFileMetadataStore) ClearExpiredFiles() {

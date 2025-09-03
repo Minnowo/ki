@@ -28,7 +28,14 @@ type APIV1 struct {
 }
 
 func (a *APIV1) Init() {
-	a.fileStore = storage.NewFileStore(bcrypt.DefaultCost)
+
+	store, err := storage.NewBBoltFileStore("./data.db")
+
+	if err != nil {
+		log.Panic().Err(err).Msg("could not create file store")
+	}
+
+	a.fileStore = storage.NewFileStore(config.FileStorageDir(), store, bcrypt.DefaultCost)
 	a.fileStore.RunExpireCheckLoop(time.Second * 60)
 	a.rateLimiter = ratelimit.New(rate.Every(time.Millisecond*1000), 1)
 	a.csrfHandler = csrf.NewCSRFHandler(

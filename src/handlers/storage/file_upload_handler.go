@@ -35,9 +35,10 @@ type FileUploadHandler struct {
 	daemonCloseChan chan bool
 }
 
-func NewFileStore(bcryptCost int) FileUploadHandler {
+func NewFileStore(dir string, store FileStore, bcryptCost int) FileUploadHandler {
 	return FileUploadHandler{
-		metadataStore:   NewMemoryFileMetadataStore(),
+		FileDir:         dir,
+		metadataStore:   store,
 		keySize:         config.AES_KEY_SIZE,
 		bcryptCost:      bcryptCost,
 		daemonCloseChan: nil,
@@ -106,7 +107,7 @@ func (f *FileUploadHandler) GetFile(key FileID) *KiMetadata {
 
 func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) error {
 
-	file, err := f.metadataStore.WithFile(key, func(file KiFile) error {
+	file, err := f.metadataStore.WithFile(key, func(file *KiFile) error {
 
 		if file.IsExpired() {
 			return ErrFileExpired
@@ -127,7 +128,7 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 	}
 
 	// We need to clear the ActiveDownload we put from the above call
-	defer f.metadataStore.WithFile(key, func(file KiFile) error {
+	defer f.metadataStore.WithFile(key, func(file *KiFile) error {
 
 		file.Metadata().SubDownloader()
 
@@ -256,11 +257,11 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 		}
 	}
 
-	fileId := f.metadataStore.StoreFile(&KiEncryptedFile{
-		userPasswordHash: passHash,
-		key:              key,
-		filePath:         file.Name(),
-		keySize:          f.keySize,
+	fileId, err := f.metadataStore.StoreFile(&KiFile{
+		UserPasswordHash: passHash,
+		Key:              key,
+		FilePath:         file.Name(),
+		KeySize:          f.keySize,
 		KiMetadata: KiMetadata{
 			Sha512Hash:       sha512Hash.Sum(nil),
 			Sha256Hash:       sha256Hash.Sum(nil),
@@ -275,6 +276,11 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 			UserSetPassword:  didUserGivePassword,
 		},
 	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("Error storing file")
+		return nil, err
+	}
 
 	log.Info().
 		Str("name", file.Name()).

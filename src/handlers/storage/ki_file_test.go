@@ -26,11 +26,11 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 		assert.Nil(err, "should be able to create a temp file")
 		tempFile.Close()
 
-		file := KiEncryptedFile{
-			key:              make([]byte, crypto.AES256),
-			filePath:         tempFile.Name(),
-			userPasswordHash: hash,
-			keySize:          config.AES_KEY_SIZE,
+		file := KiFile{
+			Key:              make([]byte, crypto.AES256),
+			FilePath:         tempFile.Name(),
+			UserPasswordHash: hash,
+			KeySize:          config.AES_KEY_SIZE,
 			KiMetadata: KiMetadata{
 				Downloads:        0,
 				AllowedDownloads: 1,
@@ -59,7 +59,7 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 
 		// shouldn't be cleaned yet, since ActiveDownloads > 0
 		assert.False(file.Clean(), "shouldn't be clean because still downloading")
-		assert.False(file.wasCleaned, "shouldn't be clean because still downloading")
+		assert.False(file.WasCleaned, "shouldn't be clean because still downloading")
 
 		file.Metadata().SubDownloader()
 
