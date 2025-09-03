@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type FileLock struct {
+type fileLock struct {
 	File *KiFile
 	sync.RWMutex
 }
@@ -16,12 +16,12 @@ type FileLock struct {
 // All file metadata is stored in memory.
 type MemoryFileMetadataStore struct {
 	sync.RWMutex
-	files map[FileID]*FileLock
+	files map[FileID]*fileLock
 }
 
 func NewMemoryFileMetadataStore() *MemoryFileMetadataStore {
 	return &MemoryFileMetadataStore{
-		files: make(map[FileID]*FileLock),
+		files: make(map[FileID]*fileLock),
 	}
 }
 
@@ -105,7 +105,7 @@ func (s *MemoryFileMetadataStore) StoreFile(file *KiFile) (FileID, error) {
 		}
 	}
 
-	s.files[fileId] = &FileLock{File: file}
+	s.files[fileId] = &fileLock{File: file}
 
 	return fileId, nil
 }
