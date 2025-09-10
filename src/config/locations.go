@@ -13,6 +13,7 @@ var (
 func FileStorageDir() string {
 	return fileStorageDir
 }
+
 func SetFileStorageDir(dir string) {
 
 	if err := os.MkdirAll(dir, 0700); err != nil {

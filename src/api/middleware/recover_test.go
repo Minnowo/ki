@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"ki/src/logging"
+	"ki/src/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,9 +9,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func TestRecover(t *testing.T) {
+func init() {
+	config.InitLogging()
+}
 
-	logging.Init()
+func TestRecover(t *testing.T) {
 
 	r := mux.NewRouter()
 	r.Use(Recoverer)

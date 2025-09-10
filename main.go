@@ -12,6 +12,8 @@ import (
 
 func main() {
 
+	config.InitLogging()
+
 	cmd := &cli.Command{
 		Name:  "Ki",
 		Usage: "A secure upload portal",

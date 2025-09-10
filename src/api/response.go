@@ -3,12 +3,15 @@ package api
 import (
 	"fmt"
 	"io"
-	"ki/src/logging"
 	"net/http"
+
+	"github.com/minnowo/log4zero"
 )
 
+var logger = log4zero.Get("api")
+
 func Done(w http.ResponseWriter, code int, msg string) {
-	logging.ApiLog.Debug().Int("code", code).Msg(msg)
+	logger.Debug().Int("code", code).Msg(msg)
 	http.Error(w, msg, code)
 }
 

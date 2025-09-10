@@ -3,7 +3,6 @@ package auth
 import (
 	"ki/src/config"
 	"ki/src/handlers/user"
-	"ki/src/logging"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +10,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	config.InitLogging()
+}
 
 func expectContext(t *testing.T, username string, yes bool) func(w http.ResponseWriter, r *http.Request) {
 
@@ -28,8 +31,6 @@ func expectContext(t *testing.T, username string, yes bool) func(w http.Response
 }
 
 func TestAuthMiddleware(t *testing.T) {
-
-	logging.Init()
 
 	username := "test"
 	password := "test"

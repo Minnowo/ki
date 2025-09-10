@@ -2,7 +2,7 @@ package storage
 
 import (
 	"bytes"
-	"ki/src/logging"
+	"ki/src/config"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,9 +12,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestFileMap(t *testing.T) {
+func init() {
 
-	logging.Init()
+	config.InitLogging()
+}
+
+func TestFileMap(t *testing.T) {
 
 	for _, store := range getStores(t) {
 
