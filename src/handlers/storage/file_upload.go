@@ -15,6 +15,7 @@ type FileUpload struct {
 	FStream          io.Reader
 	ExpiresIn        time.Duration
 	AllowedDownloads int
+	MemoryOnly       bool
 	Filename         string
 	Password         string
 }

@@ -1,0 +1,16 @@
+{
+    "loggers" : {
+        "api" : {
+            "level": "debug"
+        },
+        "MixedFileStore" : {
+            "level": "debug"
+        },
+        "BBoltFileStore" : {
+            "level": "debug"
+        },
+        "MemoryFileStore" : {
+            "level": "debug"
+        }
+    }
+}

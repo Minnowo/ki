@@ -50,6 +50,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	var minutes int32 = -1
 	var downloads int32 = -1
 	var password string = ""
+	var memoryOnly bool = false
 	var key *storage.FileID = nil
 	var finished bool = false
 	var didVerifyCSRF bool = false
@@ -123,6 +124,14 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			}
 			break
 
+		case formkeys.UPLOAD_FORM_MEMORY_ONLY:
+
+			if memoryOnly, ok = form.ReadFormBool(part); !ok {
+				api.Done(w, http.StatusBadRequest, "error reading memory only")
+				return
+			}
+			break
+
 		case formkeys.UPLOAD_FORM_PASSWORD:
 
 			if password, ok = form.ReadFormString(config.MAX_PASSWORD_LENGTH, part); !ok {
@@ -163,6 +172,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				AllowedDownloads: int(downloads),
 				Filename:         strings.TrimSpace(part.FileName()),
 				Password:         password,
+				MemoryOnly:       memoryOnly,
 				ExpiresIn: ((24 * time.Hour * time.Duration(days)) +
 					(time.Hour * time.Duration(hours)) +
 					(time.Minute * time.Duration(minutes))),

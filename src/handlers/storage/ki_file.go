@@ -26,6 +26,7 @@ type KiMetadata struct {
 	ActiveDownloads  int       `cbor:"dlactive"`
 	Name             string    `cbor:"name"`
 	UserSetPassword  bool      `cbor:"haspassword"`
+	MemoryOnly       bool      `cbor:"memoryonly"`
 }
 
 func (f *KiMetadata) Clone() *KiMetadata {
@@ -41,6 +42,7 @@ func (f *KiMetadata) Clone() *KiMetadata {
 		ActiveDownloads:  f.ActiveDownloads,
 		Name:             f.Name,
 		UserSetPassword:  f.UserSetPassword,
+		MemoryOnly:       f.MemoryOnly,
 	}
 }
 

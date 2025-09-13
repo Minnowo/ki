@@ -4,15 +4,17 @@ import (
 	"io"
 	"mime/multipart"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
 
-// read a string of at most the given length from the [multipart.Part]
-// if it reads a string longer than length or reads an error it returns false
+// ReadFormString reads a string of at most the given length from the [multipart.Part].
+// If it reads a string longer than length or reads an error it returns false
 func ReadFormString(length int, part *multipart.Part) (string, bool) {
 
-	var buf []byte = make([]byte, length)
+	// +1 allows us to know if we read longer than the expected length
+	var buf []byte = make([]byte, length+1)
 
 	n, err := part.Read(buf[:])
 
@@ -58,4 +60,32 @@ func ReadFormInt(part *multipart.Part) (int32, bool) {
 	}
 
 	return 0, false
+}
+
+// ReadFormBool reads a boolean from the given part.
+// Returns (value, ok)
+func ReadFormBool(part *multipart.Part) (bool, bool) {
+
+	boolean, ok := ReadFormString(5, part)
+
+	if !ok {
+		return false, false
+	}
+
+	switch strings.ToLower(boolean) {
+	default:
+		return false, false
+	case "false":
+		return false, true
+	case "true":
+		return true, true
+	case "yes":
+		return true, true
+	case "no":
+		return false, true
+	case "1":
+		return true, true
+	case "0":
+		return false, true
+	}
 }

@@ -3,19 +3,21 @@ package storage
 import "fmt"
 
 var (
-	errNilPtr = fmt.Errorf("got nil pointer")
+	errNilPtr     = fmt.Errorf("got nil pointer")
+	ErrFileExists = fmt.Errorf("the given id exists")
 )
 
 // FileStore handles saving the uploaded file information.
 type FileStore interface {
 
 	// StoreFileMetadata creates a new FileID and saves the file with it.
-	// Depending on the implementation this will also copy the file.
-	// This should be used only when you know you're not modifying the given file after the fact.
+	// This clones the given KiFile.
 	StoreFile(file *KiFile) (FileID, error)
 
-	// StoreFileMetadata creates a new FileID and saves a clone of the file with it.
-	StoreFileCopy(file *KiFile) (FileID, error)
+	// StoreFileEx calls the given gen to get a new FileID from the user.
+	// The FileID is then used to store the file, if gen returns an error the file store is aborted.
+	// This clones the given KiFile.
+	StoreFileEx(file *KiFile, gen func(id *FileID) error) (FileID, error)
 
 	// GetFileMetadata reads a copy of the file's metadata for the given key.
 	// Never returns an expired file's metadata.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/minnowo/log4zero"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -17,11 +18,17 @@ var (
 	errKeyExists      = fmt.Errorf("key exists")
 )
 
+var (
+	boltLog = log4zero.Get("BBoltFileStore")
+)
+
 type BBoltFileStore struct {
 	db *bolt.DB
 }
 
 func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
+
+	boltLog.Debug().Str("path", path).Msg("opening bolt database")
 
 	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: time.Second * 5})
 
@@ -43,11 +50,7 @@ func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
 	return fstore, nil
 }
 
-func (s *BBoltFileStore) StoreFileCopy(file *KiFile) (FileID, error) {
-	return s.StoreFile(file)
-}
-
-func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
+func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (FileID, error) {
 
 	if file == nil {
 		return FileID{}, errNilPtr
@@ -64,7 +67,9 @@ func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
 		}
 
 		for {
-			rand.Read(fileId[:])
+			if err := gen(&fileId); err != nil {
+				return err
+			}
 
 			v := b.Get(fileId[:])
 
@@ -79,6 +84,8 @@ func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
 			return err
 		}
 
+		boltLog.Debug().Str("name", file.Name).Msg("storing file")
+
 		return b.Put(fileId[:], data)
 	})
 
@@ -87,6 +94,13 @@ func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
 	}
 
 	return fileId, nil
+}
+
+func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
+	return s.StoreFileEx(file, func(id *FileID) error {
+		_, err := rand.Read(id[:])
+		return err
+	})
 }
 
 func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {

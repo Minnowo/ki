@@ -4,7 +4,11 @@ import (
 	"crypto/rand"
 	"sync"
 
-	"github.com/rs/zerolog/log"
+	"github.com/minnowo/log4zero"
+)
+
+var (
+	memLog = log4zero.Get("MemoryFileStore")
 )
 
 type fileLock struct {
@@ -12,20 +16,20 @@ type fileLock struct {
 	sync.RWMutex
 }
 
-// MemoryFileMetadataStore a simple file store which uses a hashmap.
+// MemoryFileStore a simple file store which uses a hashmap.
 // All file metadata is stored in memory.
-type MemoryFileMetadataStore struct {
+type MemoryFileStore struct {
 	sync.RWMutex
 	files map[FileID]*fileLock
 }
 
-func NewMemoryFileMetadataStore() *MemoryFileMetadataStore {
-	return &MemoryFileMetadataStore{
+func NewMemoryFileStore() *MemoryFileStore {
+	return &MemoryFileStore{
 		files: make(map[FileID]*fileLock),
 	}
 }
 
-func (s *MemoryFileMetadataStore) WithFile(id FileID, mutate func(file *KiFile) error) (*KiFile, error) {
+func (s *MemoryFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*KiFile, error) {
 
 	s.RLock()
 	file, ok := s.files[id]
@@ -58,7 +62,7 @@ func (s *MemoryFileMetadataStore) WithFile(id FileID, mutate func(file *KiFile) 
 	return newFile, err
 }
 
-func (s *MemoryFileMetadataStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
+func (s *MemoryFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 
 	s.RLock()
 	file, ok := s.files[id]
@@ -78,18 +82,9 @@ func (s *MemoryFileMetadataStore) GetFileMetadata(id FileID) (*KiMetadata, bool)
 	return file.File.Metadata().Clone(), true
 }
 
-func (s *MemoryFileMetadataStore) StoreFileCopy(file *KiFile) (FileID, error) {
+func (s *MemoryFileStore) StoreFileEx(file *KiFile, gen func(id *FileID) error) (FileID, error) {
 
-	if file == nil {
-		return FileID{}, errNilPtr
-	}
-
-	return s.StoreFile(file.Clone())
-}
-
-func (s *MemoryFileMetadataStore) StoreFile(file *KiFile) (FileID, error) {
-
-	if file == nil {
+	if file == nil || gen == nil {
 		return FileID{}, errNilPtr
 	}
 
@@ -98,19 +93,30 @@ func (s *MemoryFileMetadataStore) StoreFile(file *KiFile) (FileID, error) {
 
 	var fileId FileID
 	for {
-		rand.Read(fileId[:])
+		if err := gen(&fileId); err != nil {
+			return FileID{}, err
+		}
 
 		if _, ok := s.files[fileId]; !ok {
 			break
 		}
 	}
 
+	memLog.Debug().Str("name", file.Name).Msg("storing file")
+
 	s.files[fileId] = &fileLock{File: file}
 
 	return fileId, nil
 }
 
-func (s *MemoryFileMetadataStore) ClearExpiredFiles() {
+func (s *MemoryFileStore) StoreFile(file *KiFile) (FileID, error) {
+	return s.StoreFileEx(file, func(id *FileID) error {
+		_, err := rand.Read(id[:])
+		return err
+	})
+}
+
+func (s *MemoryFileStore) ClearExpiredFiles() {
 
 	s.Lock()
 	defer s.Unlock()
@@ -131,6 +137,6 @@ func (s *MemoryFileMetadataStore) ClearExpiredFiles() {
 	}
 
 	if expired > 0 {
-		log.Info().Int("count", expired).Msg("removed expired files")
+		memLog.Info().Int("count", expired).Msg("removed expired files")
 	}
 }

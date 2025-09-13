@@ -30,7 +30,7 @@ type APIV1 struct {
 
 func (a *APIV1) Init() {
 
-	store, err := storage.NewBBoltFileStore(path.Join(config.FileStorageDir(), "data.db"))
+	store, err := storage.NewMixedFileStore(path.Join(config.FileStorageDir(), "data.db"))
 
 	if err != nil {
 		log.Panic().Err(err).Msg("could not create file store")

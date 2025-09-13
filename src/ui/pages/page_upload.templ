@@ -96,6 +96,15 @@ templ PageUpload(view *PageUploadView) {
                     <td class="px-2"> Downloads </td>
                     <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="1" required> </td>
                 </tr>
+                <tr title="Never write file metadata to disk (file will expire if server restarts or crashes)">
+                    <td class="px-2"> Memory Only </td>
+                    <td> 
+                        <select class="w-full" name={ formkeys.UPLOAD_FORM_MEMORY_ONLY }>
+                            <option value="false">No</option>
+                            <option value="true">Yes</option>
+                        </select>
+                    </td>
+                </tr>
                 <tr title="Require this password to download the file">
                     <td class="px-2"> Password (Optional) </td>
                     <td> <input type="password" name={ formkeys.UPLOAD_FORM_PASSWORD }> </td>

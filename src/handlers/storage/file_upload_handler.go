@@ -274,6 +274,7 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 			ActiveDownloads:  0,
 			AllowedDownloads: upload.AllowedDownloads,
 			UserSetPassword:  didUserGivePassword,
+			MemoryOnly:       upload.MemoryOnly,
 		},
 	})
 
