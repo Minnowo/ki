@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/rand"
 	"fmt"
+	"ki/src/config"
 	"ki/src/handlers/crypto"
 	"time"
 
@@ -53,9 +54,9 @@ func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
 		// encrypt all metadata. except for the file id.
 		// TODO: also encrypt the file id. Or just the entire database.
 		// TODO: configure this somewhere.
-		encrypt:   false,
+		encrypt:   true,
 		keySize:   crypto.AES256,
-		masterKey: "super secret key",
+		masterKey: config.GetMasterSecret(),
 	}
 
 	return fstore, nil

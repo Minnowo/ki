@@ -1,36 +1,20 @@
 package config
 
-import (
-	"encoding/hex"
-	"os"
+import "github.com/rs/zerolog/log"
 
-	"github.com/rs/zerolog/log"
-)
+// This is the password used for encryption of data inside the bolt database.
+// It is a string because the pbkdf2 function wants a string for the password.
+// TODO: combine this value with a compile time constant?? Would be harder to get.
+var envSecret string
 
-const ENV__SECRET = "KI_MASTER_SECRET"
+func SetMasterSecret(s string) {
 
-var envSecret []byte = nil
-
-// Used for encrypting data in the bolt database.
-// TODO: Set this at compiletime?
-func GetMasterSecret() []byte {
-
-	if envSecret == nil {
-
-		envVal := os.Getenv(ENV__SECRET)
-
-		if envVal == "" || len(envVal) < 2 {
-			log.Panic().Str("var", ENV__SECRET).Str("val", envVal).Msg("read empty or invalid secret")
-		}
-
-		key, err := hex.DecodeString(envVal)
-
-		if err != nil {
-			log.Panic().Err(err).Msg("could not hex decode given secret")
-		}
-
-		envSecret = key
+	if s == "" || len(s) < 8 {
+		log.Panic().Msg("secret must be at least 8 characters")
 	}
+	envSecret = s
+}
 
+func GetMasterSecret() string {
 	return envSecret
 }

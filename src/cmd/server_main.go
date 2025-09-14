@@ -30,6 +30,11 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	if trustedProxies, ok := c.Value("trusted-proxy").([]string); ok {
 		config.ParseTrustedProxies(trustedProxies)
 	}
+
+	if secret, ok := c.Value("master-secret").(string); ok {
+		config.SetMasterSecret(secret)
+	}
+
 	config.SetMaxUploadSize(maxUploadByes)
 
 	var addr = fmt.Sprintf("%s:%d", bindAddr, port)

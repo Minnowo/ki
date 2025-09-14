@@ -134,6 +134,12 @@ func main() {
 						Sources:  cli.EnvVars("KI_FILE_DIR"),
 						Required: false,
 					},
+					&cli.StringFlag{
+						Name:     "master-secret",
+						Usage:    "The password used to encrypted metadata of files on disk",
+						Sources:  cli.EnvVars("KI_MASTER_SECRET"),
+						Required: true,
+					},
 				},
 			},
 		},
