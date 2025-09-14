@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"ki/src/config"
-	"ki/src/handlers/str"
+	"ki/src/pkg/bytes"
 	"ki/src/ui"
 	"ki/src/ui/formkeys"
 )
@@ -138,9 +138,9 @@ func PageUpload(view *PageUploadView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(str.PrettyByteSize64(config.MaxUploadSize()))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(config.MaxUploadSize()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 72, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 72, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

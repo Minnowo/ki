@@ -1,7 +1,7 @@
 package pages
 
 import(
-    "ki/src/handlers/str"
+    "ki/src/pkg/bytes"
     "ki/src/config"
 	"encoding/hex"
 	"strconv"
@@ -158,7 +158,7 @@ templ PageDownloadFile( view *PageDownloadFileView) {
         </h3>
 
         <pre class="The file size">
-            { str.PrettyByteSize64(view.File.Size) }
+            { bytes.PrettyByteSize64(view.File.Size) }
         </pre>
 
         <br/>

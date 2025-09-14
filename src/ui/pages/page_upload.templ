@@ -3,7 +3,7 @@ package pages
 import(
     "fmt"
     "ki/src/config"
-    "ki/src/handlers/str"
+    "ki/src/pkg/bytes"
     "ki/src/ui/formkeys"
     "ki/src/ui"
 )
@@ -69,7 +69,7 @@ templ PageUpload(view *PageUploadView) {
 
         <br/>
         <h1>Upload a file</h1>
-        <h3>File must be less than { str.PrettyByteSize64(config.MaxUploadSize()) } </h3>
+        <h3>File must be less than { bytes.PrettyByteSize64(config.MaxUploadSize()) } </h3>
         <br/>
 
         <form enctype="multipart/form-data" action="/api/upload" method="POST">

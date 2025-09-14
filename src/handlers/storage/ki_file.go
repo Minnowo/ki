@@ -3,8 +3,8 @@ package storage
 import (
 	"crypto/rand"
 	"io"
-	"ki/src/handlers/bytes"
 	"ki/src/handlers/crypto"
+	"ki/src/pkg/bytes"
 	"os"
 	"time"
 

@@ -1,4 +1,4 @@
-package str
+package bytes
 
 import (
 	"fmt"

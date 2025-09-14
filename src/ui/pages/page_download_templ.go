@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"ki/src/config"
-	"ki/src/handlers/str"
+	"ki/src/pkg/bytes"
 	"strconv"
 	"time"
 )
@@ -382,9 +382,9 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var22 string
-			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(str.PrettyByteSize64(view.File.Size))
+			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(view.File.Size))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 161, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 161, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
