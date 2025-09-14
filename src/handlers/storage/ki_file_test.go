@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"crypto/rand"
 	"io"
 	"ki/src/config"
 	"ki/src/handlers/crypto"
@@ -24,6 +25,10 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 
 		tempFile, err := os.CreateTemp(tempDir, "*")
 		assert.Nil(err, "should be able to create a temp file")
+
+		var garbage [256]byte
+		rand.Read(garbage[:])
+		tempFile.Write(garbage[:])
 		tempFile.Close()
 
 		file := KiFile{

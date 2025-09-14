@@ -4,8 +4,16 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/pbkdf2"
+	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"io"
+)
+
+const PBKDF2_ROUNDS int = 4096
+
+var (
+	ErrInvalidKeySize = fmt.Errorf("invalid AESKeySize")
 )
 
 type AESKeySize int
@@ -16,20 +24,18 @@ const (
 	AES128 AESKeySize = 16
 )
 
-func (k AESKeySize) Assert() {
+func (k AESKeySize) Assert() bool {
 	switch k {
 	case AES256:
-		return
+		return true
 	case AES192:
-		return
+		return true
 	case AES128:
-		return
+		return true
 	default:
-		panic("unreachable")
+		return false
 	}
 }
-
-const PBKDF2_ROUNDS int = 4096
 
 type CipherCloseReader struct {
 	UnderStream  io.ReadCloser
@@ -56,7 +62,9 @@ func GetStreamEncryptionWriterEx(kSize AESKeySize, serverKey []byte, userKey str
 
 func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 
-	AESKeySize(len(key)).Assert()
+	if !AESKeySize(len(key)).Assert() {
+		return nil, ErrInvalidKeySize
+	}
 
 	block, err := aes.NewCipher(key)
 
@@ -65,6 +73,17 @@ func GetStreamEncryptionWriter(key []byte, w io.Writer) (io.Writer, error) {
 	}
 
 	var iv [aes.BlockSize]byte
+
+	if _, err := io.ReadFull(rand.Reader, iv[:]); err != nil {
+		return nil, err
+	}
+
+	// The IV needs to be unique, but not secure.
+	// We can store it at the start of the cipher stream.
+	if _, err := w.Write(iv[:]); err != nil {
+		return nil, err
+	}
+
 	stream := cipher.NewCTR(block, iv[:])
 	writer := &cipher.StreamWriter{S: stream, W: w}
 
@@ -84,7 +103,9 @@ func GetStreamDecryptionReaderEx(kSize AESKeySize, serverKey []byte, userKey str
 
 func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
 
-	AESKeySize(len(key)).Assert()
+	if !AESKeySize(len(key)).Assert() {
+		return nil, ErrInvalidKeySize
+	}
 
 	block, err := aes.NewCipher(key)
 
@@ -93,6 +114,16 @@ func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
 	}
 
 	var iv [aes.BlockSize]byte
+
+	// We store the IV at the start of the cipher stream.
+	// So we need to read it for decrpytion.
+	if n, err := r.Read(iv[:]); err != nil || n != len(iv) {
+		if err == nil {
+			return nil, fmt.Errorf("could not read IV from stream")
+		}
+		return nil, err
+	}
+
 	stream := cipher.NewCTR(block, iv[:])
 	reader := &cipher.StreamReader{S: stream, R: r}
 
