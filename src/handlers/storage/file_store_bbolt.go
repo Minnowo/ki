@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/rand"
 	"fmt"
+	"ki/src/handlers/crypto"
 	"time"
 
 	"github.com/minnowo/log4zero"
@@ -23,7 +24,10 @@ var (
 )
 
 type BBoltFileStore struct {
-	db *bolt.DB
+	db        *bolt.DB
+	encrypt   bool
+	keySize   crypto.AESKeySize
+	masterKey string
 }
 
 func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
@@ -45,6 +49,13 @@ func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
 
 	fstore := &BBoltFileStore{
 		db: db,
+
+		// encrypt all metadata. except for the file id.
+		// TODO: also encrypt the file id. Or just the entire database.
+		// TODO: configure this somewhere.
+		encrypt:   false,
+		keySize:   crypto.AES256,
+		masterKey: "super secret key",
 	}
 
 	return fstore, nil
@@ -56,7 +67,7 @@ func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (Fil
 		return FileID{}, errNilPtr
 	}
 
-	var fileId FileID
+	var id FileID
 
 	err := s.db.Update(func(tx *bolt.Tx) error {
 
@@ -67,11 +78,11 @@ func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (Fil
 		}
 
 		for {
-			if err := gen(&fileId); err != nil {
+			if err := gen(&id); err != nil {
 				return err
 			}
 
-			v := b.Get(fileId[:])
+			v := b.Get(id[:])
 
 			if v == nil {
 				break
@@ -86,14 +97,25 @@ func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (Fil
 
 		boltLog.Debug().Str("name", file.Name).Msg("storing file")
 
-		return b.Put(fileId[:], data)
+		if s.encrypt {
+
+			encrypted, err := crypto.EncryptBytes(s.keySize, s.masterKey, id[:], data)
+
+			if err != nil {
+				return err
+			}
+
+			data = encrypted
+		}
+
+		return b.Put(id[:], data)
 	})
 
 	if err != nil {
 		return FileID{}, err
 	}
 
-	return fileId, nil
+	return id, nil
 }
 
 func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
@@ -116,6 +138,17 @@ func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 		}
 
 		data := b.Get(id[:])
+
+		if s.encrypt {
+
+			decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, id[:], data)
+
+			if err != nil {
+				return err
+			}
+
+			data = decrypted
+		}
 
 		return file.FromBinary(data)
 	})
@@ -145,6 +178,17 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 
 		data := b.Get(id[:])
 
+		if s.encrypt {
+
+			decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, id[:], data)
+
+			if err != nil {
+				return err
+			}
+
+			data = decrypted
+		}
+
 		if err := file.FromBinary(data); err != nil {
 			return err
 		}
@@ -157,6 +201,17 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 
 		if err != nil {
 			return err
+		}
+
+		if s.encrypt {
+
+			encrypted, err := crypto.EncryptBytes(s.keySize, s.masterKey, id[:], data)
+
+			if err != nil {
+				return err
+			}
+
+			data = encrypted
 		}
 
 		return b.Put(id[:], data)
@@ -182,6 +237,17 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 		return b.ForEach(func(k []byte, v []byte) error {
 
 			var file KiFile
+
+			if s.encrypt {
+
+				decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, k, v)
+
+				if err != nil {
+					return err
+				}
+
+				v = decrypted
+			}
 
 			if err := file.FromBinary(v); err != nil {
 				return err

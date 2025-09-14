@@ -11,6 +11,7 @@ import (
 )
 
 const PBKDF2_ROUNDS int = 4096
+const PBKDF2_ROUNDS_FASTER int = 1024
 
 var (
 	ErrInvalidKeySize = fmt.Errorf("invalid AESKeySize")
@@ -124,8 +125,65 @@ func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
 		return nil, err
 	}
 
+	// It's important to remember that ciphertexts must be authenticated
+	// (i.e. by using crypto/hmac) as well as being encrypted in order to
+	// be secure.
+	//
+	// We dot not do any authentication on the cipher stream.
+	// The user uploading a file should check the hash before uploading, and compare after downloading.
+
 	stream := cipher.NewCTR(block, iv[:])
 	reader := &cipher.StreamReader{S: stream, R: r}
 
 	return reader, nil
+}
+
+func DecryptBytes(kSize AESKeySize, key string, salt []byte, data []byte) ([]byte, error) {
+
+	// Never use more than 2^32 random nonces with a given key because of the risk of a repeat.
+	subkey, err := pbkdf2.Key(sha256.New, key, salt, PBKDF2_ROUNDS_FASTER, int(kSize))
+
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(subkey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	aesgcm, err := cipher.NewGCMWithRandomNonce(block)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return aesgcm.Open(nil, []byte{}, data, nil)
+}
+
+func EncryptBytes(kSize AESKeySize, key string, salt []byte, data []byte) ([]byte, error) {
+
+	// Never use more than 2^32 random nonces with a given key because of the risk of a repeat.
+	subkey, err := pbkdf2.Key(sha256.New, key, salt, PBKDF2_ROUNDS_FASTER, int(kSize))
+
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(subkey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	aesgcm, err := cipher.NewGCMWithRandomNonce(block)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ciphertext := aesgcm.Seal(nil, []byte{}, data, nil)
+
+	return ciphertext, nil
 }
