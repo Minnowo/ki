@@ -113,11 +113,11 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 			return ErrFileExpired
 		}
 
-		if file.Metadata().UserSetPassword && !file.PasswordIsValid(password) {
+		if file.UserSetPassword && !file.PasswordIsValid(password) {
 			return ErrNeedsAuth
 		}
 
-		file.Metadata().AddDownloader()
+		file.AddDownloader()
 
 		return nil
 	})
@@ -130,9 +130,9 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 	// We need to clear the ActiveDownload we put from the above call
 	defer f.metadataStore.WithFile(key, func(file *KiFile) error {
 
-		file.Metadata().SubDownloader()
+		file.SubDownloader()
 
-		if file.Metadata().ActiveDownloads < 0 {
+		if file.ActiveDownloads < 0 {
 			log.Error().Msg("active downloads < 0, this should be impossible!")
 		}
 
@@ -149,12 +149,12 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 
 	if r, ok := w.(http.ResponseWriter); ok {
 
-		r.Header().Set("Content-Length", strconv.FormatInt(file.Metadata().Size, 10))
+		r.Header().Set("Content-Length", strconv.FormatInt(file.Size, 10))
 
 		if file.Metadata().Name == "" {
 			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key.Hex()))
 		} else {
-			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", file.Metadata().Name))
+			r.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", file.Name))
 		}
 	}
 
@@ -170,10 +170,13 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 	return nil
 }
 
+// SaveFile uploads the given file into the file store.
 func (f *FileUploadHandler) SaveFile(upload FileUpload) (*FileID, error) {
 	return f.SaveFileWithProgress(upload, nil)
 }
 
+// SaveFileWithProgress uploads the given file into the file store calling the update method
+// with the number of bytes read as the file is processed.
 func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(int)) (*FileID, error) {
 
 	if err := upload.Valid(); err != nil {
@@ -182,11 +185,10 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 
 	file, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
 
-	if err == nil {
-		defer file.Close()
-	} else {
+	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	didUserGivePassword := upload.Password != ""
 
