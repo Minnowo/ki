@@ -140,6 +140,12 @@ func main() {
 						Sources:  cli.EnvVars("KI_MASTER_SECRET"),
 						Required: true,
 					},
+					&cli.StringFlag{
+						Name:     "tls-cert",
+						Usage:    "The path to a TLS cert pair, both `tls-cert`.crt and `tls-cert`.key should exist",
+						Sources:  cli.EnvVars("KI_TLS_CERT"),
+						Required: false,
+					},
 				},
 			},
 		},
