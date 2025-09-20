@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/a-h/templ"
 	"github.com/rs/zerolog/log"
 )
 
@@ -26,8 +25,6 @@ func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
 		api.Redirect(w, r, api.ROUTE__LOGIN)
 		return
 	}
-	nonce := templ.GetNonce(r.Context())
-	log.Error().Str("nonce", nonce).Msg("got it")
 
 	pages.PageUpload(&pages.PageUploadView{
 		BaseView: pages.NewBaseViewFromReq(r),
