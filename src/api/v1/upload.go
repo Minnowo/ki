@@ -12,9 +12,11 @@ import (
 	"ki/src/ui/formkeys"
 	"ki/src/ui/pages"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/rs/zerolog/log"
 )
 
@@ -24,6 +26,8 @@ func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
 		api.Redirect(w, r, api.ROUTE__LOGIN)
 		return
 	}
+	nonce := templ.GetNonce(r.Context())
+	log.Error().Str("nonce", nonce).Msg("got it")
 
 	pages.PageUpload(&pages.PageUploadView{
 		BaseView: pages.NewBaseViewFromReq(r),
@@ -35,7 +39,14 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxUploadSize())
 	rc := http.NewResponseController(w)
 
-	log.Info().Msg("handling an upload post")
+	log.Info().Str("content-length", r.Header.Get("Content-Length")).Msg("handling an upload post")
+
+	contentLen, err := strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64)
+
+	if err != nil || contentLen <= 0 || contentLen >= config.MaxUploadSize() || r.ContentLength >= config.MaxUploadSize() {
+		api.Done(w, http.StatusBadRequest, "content length is invalid, or larger than the allowed max upload size")
+		return
+	}
 
 	multipartReader, err := r.MultipartReader()
 
@@ -220,6 +231,12 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Panic().Str("fileIdHex", key.Hex()).Msg("could not build route url")
+	}
+
+	if r.Header.Get("X-Requested-With") == "js-form" {
+		w.Header().Set("Location", url.String())
+		api.Ok(w)
+		return
 	}
 
 	http.Redirect(w, r, url.String(), http.StatusSeeOther)

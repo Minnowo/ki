@@ -10,6 +10,11 @@ import (
 
 var logger = log4zero.Get("api")
 
+func Ok(w http.ResponseWriter) {
+	logger.Debug().Int("code", http.StatusOK).Msg("")
+	w.WriteHeader(http.StatusOK)
+}
+
 func Done(w http.ResponseWriter, code int, msg string) {
 	logger.Debug().Int("code", code).Msg(msg)
 	http.Error(w, msg, code)

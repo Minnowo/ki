@@ -451,6 +451,10 @@ video {
   margin-bottom: 0.5rem;
 }
 
+.flex {
+  display: flex;
+}
+
 .table {
   display: table;
 }

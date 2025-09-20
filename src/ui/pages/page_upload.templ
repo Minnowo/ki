@@ -1,7 +1,6 @@
 package pages
 
 import(
-    "fmt"
     "ki/src/config"
     "ki/src/pkg/bytes"
     "ki/src/ui/formkeys"
@@ -27,45 +26,82 @@ templ e2eOptions(view *PageUploadView ) {
     </pre>
 }
 
-templ otherUploadOptions(view *PageUploadView ) {
+script formUploadScript() {
 
-    {{
-        dl := view.Origin + "/api/upload"
+    document.addEventListener('DOMContentLoaded', () => {
 
-        curlCmd := fmt.Sprint("curl -Ls -H \"Content-Type: multipart/form-data\" ", dl, 
-            " -o upload -w \"\\n%{url_effective}\\n\" ",
-            " -F ", formkeys.UPLOAD_FORM_EXPIRE_DAYS, "=\"0\"",
-            " -F ", formkeys.UPLOAD_FORM_EXPIRE_HOURS, "=\"1\"",
-            " -F ", formkeys.UPLOAD_FORM_EXPIRE_MINUTES, "=\"0\"",
-            " -F ", formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS, "=\"1\"",
-            " -F ", formkeys.UPLOAD_FORM_PASSWORD, "=\"\"",
-            " -F ", formkeys.UPLOAD_FORM_FILE, "=\"data=@your_file_path.txt\"",
-            )
-        // wgetCmd := "wget -O /dev/null --content-disposition " + dl
-    }}
+        const form = document.querySelector('form[action="/api/upload"]');
 
-    <br/>
-    <h1>Other uploads</h1>
-    <br/>
-        
-    <pre class="my-2" title="Curl command to download the file">
-        <textarea class="w-full" rows="1">
-            { curlCmd }
-        </textarea>
-    </pre>
+        if (!form) {
+            return;
+        }
 
-    <!--
-    <pre class="my-2" title="wget command to download the file">
-        <textarea class="w-full whitespace-nowrap" rows="1">
-            { wgetCmd }
-        </textarea>
-    </pre>
-    -->
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            const startTime = Date.now();
+
+            const cont = document.createElement('div');
+            cont.style.display = 'flex';
+            cont.style.alignItems = 'center';
+            cont.style.justifyContent = 'center';
+            cont.style.gap = '10px';
+
+            const prog = document.createElement('div');
+            prog.style.whiteSpace = 'pre';
+            prog.style.fontFamily = 'monospace';
+
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.textContent = 'Cancel';
+            cancel.style.cursor = 'pointer';
+            cancel.onclick = () => {
+                xhr.abort();
+                cont.remove();
+            };
+
+            cont.appendChild(prog);
+            cont.appendChild(cancel);
+            form.parentElement.insertBefore(cont, form);
+
+            xhr.open(form.method, form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'js-form');
+
+            xhr.upload.onprogress = (e) => {
+                if (!e.lengthComputable) {
+                    return;
+                }
+                const percent = ((e.loaded / e.total) * 100).toFixed(1);
+                const rateBps = (e.loaded / ((Date.now() - startTime) / 1000)) / 1024;
+                const rateStr = (rateBps > 1024) ? (rateBps / (1024)).toFixed(2) + ' MB/s' : (rateBps).toFixed(1) + ' KB/s'
+                prog.textContent = `${e.loaded} / ${e.total} bytes (${percent}%) @ ${rateStr}`;
+            };
+
+            xhr.onload = () => {
+                const location = xhr.getResponseHeader('Location');
+                if (location && xhr.status === 200) {
+                    window.location.href = location;
+                } else {
+                    alert('Upload failed: ' + xhr.status);
+                }
+            };
+
+            xhr.onerror = () => {
+                alert('Network error during upload.');
+            };
+
+            xhr.send(formData);
+        });
+    });
 }
 
 templ PageUpload(view *PageUploadView) {
 
     @Base(&view.BaseView) {
+
+        @formUploadScript()
 
         <br/>
         <h1>Upload a file</h1>
@@ -82,19 +118,19 @@ templ PageUpload(view *PageUploadView) {
 
                 <tr title="Expire after this many days">
                     <td class="px-2"> Days </td>
-                    <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DAYS } value="0" min="0" required> </td>
+                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DAYS } value="0" min="0" required> </td>
                 </tr>
                 <tr title="Expire after this many hours">
                     <td class="px-2"> Hours </td>
-                    <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_HOURS } value="1" min="0" required> </td>
+                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_HOURS } value="1" min="0" required> </td>
                 </tr>
                 <tr title="Expire after this many minutes">
                     <td class="px-2"> Minutes </td>
-                    <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_MINUTES } value="0" min="0" required> </td>
+                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_MINUTES } value="0" min="0" required> </td>
                 </tr>
                 <tr title="Expired after this many downloads">
                     <td class="px-2"> Downloads </td>
-                    <td> <input type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="1" required> </td>
+                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="1" required> </td>
                 </tr>
                 <tr title="Never write file metadata to disk (file will expire if server restarts or crashes)">
                     <td class="px-2"> Memory Only </td>
@@ -107,7 +143,7 @@ templ PageUpload(view *PageUploadView) {
                 </tr>
                 <tr title="Require this password to download the file">
                     <td class="px-2"> Password (Optional) </td>
-                    <td> <input type="password" name={ formkeys.UPLOAD_FORM_PASSWORD }> </td>
+                    <td> <input class="w-full" type="password" name={ formkeys.UPLOAD_FORM_PASSWORD }> </td>
                 </tr>
                 <tr title="Choose the file to upload">
                     <td colspan="2"> 

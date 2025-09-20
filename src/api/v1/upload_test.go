@@ -51,6 +51,7 @@ func TestUpload(t *testing.T) {
 			Path:  "/"})
 
 		r.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+		r.Header.Set("Content-Length", "50") // any value works just needs to be > 0 and < max upload size
 		w := httptest.NewRecorder()
 
 		apiv := APIV1{UserRegistry: user.NewRegistry()}
