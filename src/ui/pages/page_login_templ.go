@@ -69,7 +69,7 @@ func PageLogin(view *BaseView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" required></td></tr><tr title=\"Your password\"><td class=\"px-2\">Password </td><td><input type=\"password\" name=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" autofocus required></td></tr><tr title=\"Your password\"><td class=\"px-2\">Password </td><td><input type=\"password\" name=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
