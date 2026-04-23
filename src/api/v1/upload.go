@@ -33,6 +33,11 @@ func (a *APIV1) ui_upload(w http.ResponseWriter, r *http.Request) {
 
 func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
+	if !auth.IsAuthed(r) {
+		api.Unauthorized(w)
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxUploadSize())
 	rc := http.NewResponseController(w)
 
@@ -92,7 +97,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 
 			csrfTok, ok := form.ReadFormString(csrf.TOKEN_LENGTH_ENC, part)
 
-			if !ok || csrfTok == "" || !a.csrfHandler.VerifyStr(r, csrfTok) {
+			if !ok || !a.csrfHandler.VerifyStr(r, csrfTok) {
 				api.Done(w, http.StatusForbidden, "invalid csrf token")
 				return
 			}
@@ -189,7 +194,7 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 			timeoutHelper := func(_ int) {
 
 				// make sure the request never times out if we're reading data
-				deadline := time.Now().Add(time.Second * 15)
+				deadline := time.Now().Add(time.Second * time.Duration(config.UPLOAD_TIMEOUT_PER_READ_SECONDS))
 				rc.SetReadDeadline(deadline)
 				rc.SetWriteDeadline(deadline)
 			}

@@ -50,5 +50,5 @@ build-site:
 	go build -ldflags "$(LDFLAGS)" -tags="$(TAGS)" -o $(SITE_DST) $(SITE_SRC)
 
 run: format generate
-	LOG_LEVEL=debug go run $(SITE_SRC) run
+	LOG_LEVEL=debug go run $(SITE_SRC) run --master-secret 12345678 --tls-cert ./ki_files/tls_cert
 

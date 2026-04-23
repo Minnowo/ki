@@ -33,6 +33,7 @@ type FileUploadHandler struct {
 	keySize         crypto.AESKeySize
 	metadataStore   FileStore
 	daemonCloseChan chan bool
+	sessionStore    *UploadSessionStore
 }
 
 func NewFileStore(dir string, store FileStore, bcryptCost int) FileUploadHandler {
@@ -42,6 +43,7 @@ func NewFileStore(dir string, store FileStore, bcryptCost int) FileUploadHandler
 		keySize:         config.AES_KEY_SIZE,
 		bcryptCost:      bcryptCost,
 		daemonCloseChan: nil,
+		sessionStore:    newUploadSessionStore(config.SessionTimeout()),
 	}
 }
 
@@ -85,6 +87,7 @@ func (f *FileUploadHandler) RunExpireCheckLoop(interval time.Duration) bool {
 			case t := <-ticker.C:
 
 				f.metadataStore.ClearExpiredFiles()
+				f.sessionStore.ClearExpired()
 
 				log.Debug().Str("time", t.String()).Msg("clearing out expired files")
 			}

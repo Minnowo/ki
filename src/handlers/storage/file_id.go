@@ -2,11 +2,29 @@ package storage
 
 import (
 	"encoding/hex"
+	"errors"
 	"ki/src/config"
 	"strings"
 )
 
+var ErrInvalidFileID = errors.New("invalid file ID")
+
 type FileID [config.FILE_ID_SIZE]byte
+
+func (f *FileID) FromHex(hx string) error {
+
+	n, err := hex.Decode(f[:], []byte(hx))
+
+	if err != nil {
+		return err
+	}
+
+	if n != config.FILE_ID_SIZE {
+		return ErrInvalidFileID
+	}
+
+	return nil
+}
 
 func (f FileID) Hex() string {
 	return hex.EncodeToString(f[:])

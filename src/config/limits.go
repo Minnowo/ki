@@ -19,7 +19,10 @@ const (
 
 const SESSION_MAX_AGE time.Duration = time.Hour * 24
 
+const UPLOAD_TIMEOUT_PER_READ_SECONDS int64 = 60
+
 const MAX_LOGIN_FORM_SIZE int64 = 2 * KB
+const MAX_UPLOAD_SESSION_FORM_SIZE int64 = 4 * KB
 
 const MAX_USERNAME_LENGTH int = 10
 const MAX_USER_PASSWORD_LENGTH int = 32
@@ -40,7 +43,9 @@ const EXPIREY_TIME_FORMAT string = "2006-01-02 15:04:05 MST"
 const HOST string = "localhost"
 
 var (
-	maxUploadSize int64 = 512 * MB
+	maxUploadSize  int64         = 512 * MB
+	maxChunkSize   int64         = 10 * MB
+	sessionTimeout time.Duration = 30 * time.Minute
 )
 
 func MaxUploadSize() int64 {
@@ -49,4 +54,12 @@ func MaxUploadSize() int64 {
 
 func SetMaxUploadSize(size int64) {
 	maxUploadSize = size
+}
+
+func MaxChunkSize() int64 {
+	return maxChunkSize
+}
+
+func SessionTimeout() time.Duration {
+	return sessionTimeout
 }

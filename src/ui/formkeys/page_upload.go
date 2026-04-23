@@ -8,4 +8,5 @@ var (
 	UPLOAD_FORM_MEMORY_ONLY      string = "memory_only"
 	UPLOAD_FORM_PASSWORD         string = "password_2_download"
 	UPLOAD_FORM_FILE             string = "the_file"
+	UPLOAD_FORM_FILENAME         string = "filename"
 )

@@ -216,7 +216,12 @@ func (h *Handler) Verify(r *http.Request, rToken []byte) bool {
 // Verify checks if the token is valid
 func (h *Handler) VerifyStr(r *http.Request, rToken string) bool {
 
+	if len(rToken) != TOKEN_LENGTH_ENC {
+		return false
+	}
+
 	tokenBytes, err := DecodeToken(rToken)
+
 	if err != nil {
 		return false
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +35,11 @@ func Unauthorized(w http.ResponseWriter) {
 
 func Redirect(w http.ResponseWriter, r *http.Request, route string) {
 	http.Redirect(w, r, route, http.StatusSeeOther)
+}
+
+func WriteJSON(w http.ResponseWriter, v any) error {
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(v)
 }
 
 func Close(r io.ReadCloser, w http.ResponseWriter, code int, msg string) {
