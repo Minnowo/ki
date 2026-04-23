@@ -46,8 +46,8 @@ func e2eOptions(view *PageUploadView) templ.Component {
 
 func formUploadScript() templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_formUploadScript_bb14`,
-		Function: `function __templ_formUploadScript_bb14(){const CHUNK_THRESHOLD = 1;//50 * 1024 * 1024; // use chunked API for files larger than 50 MB
+		Name: `__templ_formUploadScript_aa8d`,
+		Function: `function __templ_formUploadScript_aa8d(){const CHUNK_THRESHOLD = 1;//50 * 1024 * 1024; // use chunked API for files larger than 50 MB
 
     document.addEventListener('DOMContentLoaded', () => {
 
@@ -138,9 +138,11 @@ func formUploadScript() templ.ComponentScript {
         const { cont, prog, cancel } = makeProgressUI(form);
         let uploadId = null;
         let aborted = false;
+        let currentXHR = null;
 
-        cancel.onclick = async () => {
+        cancel.onclick = () => {
             aborted = true;
+            if (currentXHR) currentXHR.abort();
             if (uploadId) {
                 fetch('/api/upload/' + uploadId + '/abort', { method: 'POST' }).catch(() => {});
             }
@@ -149,36 +151,32 @@ func formUploadScript() templ.ComponentScript {
 
         prog.textContent = 'Starting upload...';
 
-        // 1. Begin: send metadata only.
+        // 1. Begin: send metadata only (tiny payload, fetch is fine).
         const beginData = new FormData();
-        beginData.set('__csrf__',           form.querySelector('[name="__csrf__"]').value);
-        beginData.set('expire_days',        form.querySelector('[name="expire_days"]').value);
-        beginData.set('expire_hours',       form.querySelector('[name="expire_hours"]').value);
-        beginData.set('expire_minutes',     form.querySelector('[name="expire_minutes"]').value);
-        beginData.set('expire_downloads',   form.querySelector('[name="expire_downloads"]').value);
-        beginData.set('memory_only',        form.querySelector('[name="memory_only"]').value);
+        beginData.set('__csrf__',            form.querySelector('[name="__csrf__"]').value);
+        beginData.set('expire_days',         form.querySelector('[name="expire_days"]').value);
+        beginData.set('expire_hours',        form.querySelector('[name="expire_hours"]').value);
+        beginData.set('expire_minutes',      form.querySelector('[name="expire_minutes"]').value);
+        beginData.set('expire_downloads',    form.querySelector('[name="expire_downloads"]').value);
+        beginData.set('memory_only',         form.querySelector('[name="memory_only"]').value);
         beginData.set('password_2_download', form.querySelector('[name="password_2_download"]').value);
-        beginData.set('filename',           file.name);
+        beginData.set('filename',            file.name);
 
         let beginResp;
         try {
             beginResp = await fetch('/api/upload/begin', { method: 'POST', body: beginData });
         } catch (e) {
-            cont.remove();
-            alert('Network error during upload.');
-            return;
+            cont.remove(); alert('Network error during upload.'); return;
         }
         if (!beginResp.ok) {
-            cont.remove();
-            alert('Upload failed: ' + await beginResp.text());
-            return;
+            cont.remove(); alert('Upload failed: ' + await beginResp.text()); return;
         }
 
         const { upload_id, max_chunk_size } = await beginResp.json();
         uploadId = upload_id;
         const chunkSize = max_chunk_size || (10 * 1024 * 1024);
 
-        // 2. Send chunks sequentially.
+        // 2. Send chunks with XHR so xhr.upload.onprogress fires within each chunk.
         let offset = 0;
         const total = file.size;
         const startTime = Date.now();
@@ -187,24 +185,33 @@ func formUploadScript() templ.ComponentScript {
             if (aborted) return;
 
             const chunk = file.slice(offset, offset + chunkSize);
+            const chunkOffset = offset; // bytes fully uploaded before this chunk
 
-            let chunkResp;
-            try {
-                chunkResp = await fetch('/api/upload/' + uploadId + '/chunk', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/octet-stream' },
-                    body: chunk,
-                });
-            } catch (e) {
-                cont.remove();
-                alert('Network error during upload.');
-                return;
-            }
-            if (!chunkResp.ok) {
-                cont.remove();
-                alert('Upload failed: ' + await chunkResp.text());
-                return;
-            }
+            const err = await new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+                currentXHR = xhr;
+
+                xhr.open('POST', '/api/upload/' + uploadId + '/chunk', true);
+                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        prog.textContent = fmtProgress(chunkOffset + e.loaded, total, startTime);
+                    }
+                };
+
+                xhr.onload = () => {
+                    currentXHR = null;
+                    resolve(xhr.status === 200 ? null : (xhr.responseText || String(xhr.status)));
+                };
+                xhr.onerror = () => { currentXHR = null; resolve('Network error'); };
+                xhr.onabort = () => { currentXHR = null; resolve('aborted'); };
+
+                xhr.send(chunk);
+            });
+
+            if (aborted) return;
+            if (err) { cont.remove(); alert('Upload failed: ' + err); return; }
 
             offset += chunk.size;
             prog.textContent = fmtProgress(offset, total, startTime);
@@ -212,7 +219,7 @@ func formUploadScript() templ.ComponentScript {
 
         if (aborted) return;
 
-        // 3. Complete.
+        // 3. Complete (no body, fetch is fine).
         prog.textContent = 'Finalising...';
 
         let completeResp;
@@ -222,25 +229,20 @@ func formUploadScript() templ.ComponentScript {
                 headers: { 'X-Requested-With': 'js-form' },
             });
         } catch (e) {
-            cont.remove();
-            alert('Network error during upload.');
-            return;
+            cont.remove(); alert('Network error during upload.'); return;
         }
 
         if (completeResp.ok) {
             const location = completeResp.headers.get('Location');
-            if (location) {
-                window.location.href = location;
-                return;
-            }
+            if (location) { window.location.href = location; return; }
         }
 
         cont.remove();
         alert('Upload failed: ' + completeResp.status);
     }
 }`,
-		Call:       templ.SafeScript(`__templ_formUploadScript_bb14`),
-		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_bb14`),
+		Call:       templ.SafeScript(`__templ_formUploadScript_aa8d`),
+		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_aa8d`),
 	}
 }
 
@@ -288,7 +290,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(config.MaxUploadSize()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 232, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 234, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -309,7 +311,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DAYS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 245, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 247, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -322,7 +324,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_HOURS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 249, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 251, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -335,7 +337,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_MINUTES)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 253, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 255, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -348,7 +350,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 257, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 259, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -361,7 +363,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_MEMORY_ONLY)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 262, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 264, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -374,7 +376,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_PASSWORD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 270, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 272, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -387,7 +389,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_FILE)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 274, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 276, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
