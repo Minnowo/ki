@@ -56,8 +56,21 @@
     button,
     select,
     textarea {
-        @apply outline-none rounded-sm border px-0.5 py-1
-             bg-c-black      text-c-white      placeholder-c-green      border-c-yellow  focus:border-c-red
+        @apply
+
+        rounded-sm
+        border
+        px-0.5
+        py-1
+
+        bg-c-black
+        text-c-white
+        placeholder-c-green
+        border-c-yellow
+        focus:border-c-red
+        focus:outline-none
+        focus-within:border-c-red
+        focus-within:outline-none
     }
 
     .table-bordered {

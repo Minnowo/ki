@@ -593,10 +593,12 @@ input::placeholder,
   color: rgb(106 153 85 / var(--tw-placeholder-opacity));
 }
 
-input,
-    button,
-    select,
-    textarea {
+input:focus-within,
+    button:focus-within,
+    select:focus-within,
+    textarea:focus-within {
+  --tw-border-opacity: 1;
+  border-color: rgb(244 71 71 / var(--tw-border-opacity));
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
@@ -607,6 +609,8 @@ input:focus,
     textarea:focus {
   --tw-border-opacity: 1;
   border-color: rgb(244 71 71 / var(--tw-border-opacity));
+  outline: 2px solid transparent;
+  outline-offset: 2px;
 }
 
 .table-padded th,
