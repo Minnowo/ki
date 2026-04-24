@@ -3,6 +3,7 @@ package v1
 import (
 	"bytes"
 	"io"
+	"ki/src/api/auth"
 	"ki/src/config"
 	"ki/src/handlers/user"
 	"ki/src/pkg/csrf"
@@ -45,6 +46,7 @@ func TestUpload(t *testing.T) {
 
 		r, err := http.NewRequest("POST", "/api/upload", &buf)
 		assert.Nil(err)
+		r = auth.PutUser(r, "myuser")
 		r.AddCookie(&http.Cookie{
 			Name:  config.CSRF_COOKIE,
 			Value: token,

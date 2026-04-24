@@ -46,8 +46,8 @@ func e2eOptions(view *PageUploadView) templ.Component {
 
 func formUploadScript() templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_formUploadScript_aa8d`,
-		Function: `function __templ_formUploadScript_aa8d(){const CHUNK_THRESHOLD = 1;//50 * 1024 * 1024; // use chunked API for files larger than 50 MB
+		Name: `__templ_formUploadScript_600c`,
+		Function: `function __templ_formUploadScript_600c(){const CHUNK_THRESHOLD = 50 * 1024 * 1024; // use chunked API for files larger than 50 MB
 
     document.addEventListener('DOMContentLoaded', () => {
 
@@ -241,8 +241,8 @@ func formUploadScript() templ.ComponentScript {
         alert('Upload failed: ' + completeResp.status);
     }
 }`,
-		Call:       templ.SafeScript(`__templ_formUploadScript_aa8d`),
-		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_aa8d`),
+		Call:       templ.SafeScript(`__templ_formUploadScript_600c`),
+		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_600c`),
 	}
 }
 

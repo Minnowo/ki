@@ -30,9 +30,7 @@ func ParseAuth(sessionCookie string, userReg *user.UserRegistry) func(next http.
 				if ok {
 					log.Debug().Str("user", username).Msg("valid session")
 
-					ctx := context.WithValue(r.Context(), ctxUserKey, username)
-
-					r = r.WithContext(ctx)
+					r = PutUser(r, username)
 				} else {
 					log.Debug().Msg("expired session")
 
@@ -63,6 +61,11 @@ func RequireAuth() func(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func PutUser(r *http.Request, username string) *http.Request {
+	ctx := context.WithValue(r.Context(), ctxUserKey, username)
+	return r.WithContext(ctx)
 }
 
 // GetUser returns the user authenticated for this request, if available
