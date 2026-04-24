@@ -191,13 +191,32 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+
+	return func() (id *FileID, err error) {
+
+		defer func() {
+
+			file.Close()
+
+			if err != nil {
+				os.Remove(file.Name())
+			}
+		}()
+
+		id, err = f.saveFileWithProgress(file, upload, update)
+
+		return
+	}()
+}
+
+func (f *FileUploadHandler) saveFileWithProgress(file *os.File, upload FileUpload, update func(int)) (*FileID, error) {
 
 	didUserGivePassword := upload.Password != ""
 
 	key := make([]byte, f.keySize)
 	rand.Read(key)
 
+	var err error
 	var aesw io.Writer
 
 	if didUserGivePassword {
@@ -210,26 +229,57 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 		return nil, err
 	}
 
+	var passHash []byte = nil
+
+	if didUserGivePassword {
+
+		passHash, err = bcrypt.GenerateFromPassword([]byte(upload.Password), f.bcryptCost)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	sha512Hash := sha512.New()
 	sha256Hash := sha256.New()
 	sha1Hash := sha1.New()
 	md5Hash := md5.New()
 
 	fileSize := int64(0)
-	buffer := make([]byte, 4*config.KB) // seems to be the buffer size of the http request
+	buffer := make([]byte, 4*config.KB)
 	for {
 
 		n, err := upload.Read(buffer)
 
 		if n > 0 {
-			fileSize += int64(n)
-			aesw.Write(buffer[0:n])
+
 			sha512Hash.Write(buffer[0:n])
 			sha256Hash.Write(buffer[0:n])
 			sha1Hash.Write(buffer[0:n])
 			md5Hash.Write(buffer[0:n])
+
+			wN, wErr := aesw.Write(buffer[0:n])
+
+			fileSize += int64(wN)
+
 			if update != nil {
-				update(n)
+				update(wN)
+			}
+
+			if wErr != nil {
+				log.Error().Err(wErr).Msg("error writing data to disk")
+				return nil, wErr
+			}
+
+			if n != wN {
+				return nil, ErrTruncatedWrite
+			}
+
+			if fileSize > config.MaxUploadSize() {
+
+				log.Info().Msg("max upload size exceeded")
+
+				return nil, ErrMaxUploadSizeExceeded
 			}
 		}
 
@@ -239,26 +289,15 @@ func (f *FileUploadHandler) SaveFileWithProgress(upload FileUpload, update func(
 				break
 			}
 
-			file.Close()
-			os.Remove(file.Name())
+			if _, ok := err.(*http.MaxBytesError); ok {
+				return nil, ErrMaxUploadSizeExceeded
+			}
 
-			log.Info().Err(err).Msg("returning error from SaveFile")
 			return nil, err
 		}
 
 		if n == 0 {
 			break
-		}
-	}
-
-	var passHash []byte = nil
-
-	if didUserGivePassword {
-
-		passHash, err = bcrypt.GenerateFromPassword([]byte(upload.Password), f.bcryptCost)
-
-		if err != nil {
-			return nil, err
 		}
 	}
 

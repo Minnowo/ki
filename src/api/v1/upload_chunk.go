@@ -36,8 +36,7 @@ func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxChunkSize())
 	rc := http.NewResponseController(w)
 
-	timeoutHelper := func(n int) {
-		log.Debug().Int("n", n).Msg("read")
+	timeoutHelper := func(_ int) {
 		deadline := time.Now().Add(time.Second * time.Duration(config.UPLOAD_TIMEOUT_PER_READ_SECONDS))
 		rc.SetReadDeadline(deadline)
 		rc.SetWriteDeadline(deadline)
@@ -48,6 +47,8 @@ func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, storage.ErrSessionNotFound) {
 			api.Done(w, http.StatusNotFound, "upload session not found")
+		} else if errors.Is(err, storage.ErrMaxUploadSizeExceeded) {
+			api.Done(w, http.StatusRequestEntityTooLarge, "max upload limit exceeded")
 		} else {
 			log.Error().Err(err).Hex("id", uploadId[:]).Msg("chunk write error")
 			api.Done(w, http.StatusInternalServerError, "error writing chunk")

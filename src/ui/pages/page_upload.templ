@@ -26,9 +26,9 @@ templ e2eOptions(view *PageUploadView ) {
     </pre>
 }
 
-script formUploadScript() {
+script formUploadScript(maxUploadSize, chunkSize int64) {
 
-    const CHUNK_THRESHOLD = 50 * 1024 * 1024; // use chunked API for files larger than 50 MB
+    const CHUNK_THRESHOLD = chunkSize;
 
     document.addEventListener('DOMContentLoaded', () => {
 
@@ -44,10 +44,14 @@ script formUploadScript() {
             const fileInput = form.querySelector('input[type="file"]');
             const file = fileInput && fileInput.files[0];
 
-            if (file && file.size > CHUNK_THRESHOLD) {
-                doChunkedUpload(form, file);
-            } else {
-                doSingleUpload(form);
+            if (file) {
+                if (file.size > maxUploadSize) {
+                    alert("File size is too large");
+                } else if (file.size > CHUNK_THRESHOLD) {
+                    doChunkedUpload(form, file);
+                } else {
+                    doSingleUpload(form);
+                }
             }
         });
     });
@@ -227,7 +231,10 @@ templ PageUpload(view *PageUploadView) {
 
     @Base(&view.BaseView) {
 
-        @formUploadScript()
+        @formUploadScript(
+            config.MaxUploadSize() - config.KB,
+            config.MaxChunkSize() - config.KB,
+        )
 
         <br/>
         <h1>Upload a file</h1>

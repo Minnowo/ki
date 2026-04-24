@@ -43,8 +43,12 @@ const EXPIREY_TIME_FORMAT string = "2006-01-02 15:04:05 MST"
 const HOST string = "localhost"
 
 var (
-	maxUploadSize  int64         = 512 * MB
-	maxChunkSize   int64         = 10 * MB
+	// Total upload for a single file.
+	maxUploadSize int64 = 2 * GB
+
+	// This is the max number of bytes per request.
+	// If the file is larger than this, we will chunk the file.
+	maxChunkSize   int64         = 50 * MB
 	sessionTimeout time.Duration = 30 * time.Minute
 )
 
@@ -58,6 +62,13 @@ func SetMaxUploadSize(size int64) {
 
 func MaxChunkSize() int64 {
 	return maxChunkSize
+}
+
+func SetMaxChunkSize(size int64) {
+	if size > maxUploadSize {
+		panic("cannot have the max chunk size larger than the max upload size")
+	}
+	maxChunkSize = size
 }
 
 func SessionTimeout() time.Duration {

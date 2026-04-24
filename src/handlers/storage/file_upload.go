@@ -8,7 +8,9 @@ import (
 )
 
 var (
-	ErrInvalidUpload error = fmt.Errorf("upload is invalid")
+	ErrInvalidUpload         error = fmt.Errorf("upload is invalid")
+	ErrMaxUploadSizeExceeded       = fmt.Errorf("the file has exceeded the max upload limit")
+	ErrTruncatedWrite              = fmt.Errorf("wrote less data than was read")
 )
 
 type FileUpload struct {

@@ -206,6 +206,8 @@ func (a *APIV1) file_upload(w http.ResponseWriter, r *http.Request) {
 				if errors.Is(err, storage.ErrInvalidUpload) {
 					log.Debug().Err(err).Msg("save file error")
 					api.Done(w, http.StatusBadRequest, err.Error())
+				} else if errors.Is(err, storage.ErrMaxUploadSizeExceeded) {
+					api.Donef(w, http.StatusRequestEntityTooLarge, "max upload limit exceeded")
 				} else {
 					log.Error().Err(err).Msg("save file error")
 					api.Donef(w, http.StatusInternalServerError, "error while processing file")

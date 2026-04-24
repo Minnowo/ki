@@ -12,7 +12,6 @@ import (
 )
 
 var ErrSessionNotFound = fmt.Errorf("upload session not found")
-var ErrChunkUploadTruncatedWrite = fmt.Errorf("truncated write: wrote less data than we read")
 
 // UploadSession holds all in-progress state for a chunked upload.
 // The AES-CTR cipher writer and hash writers maintain their state between
@@ -51,6 +50,11 @@ func (s *UploadSession) Write(b []byte) (int, error) {
 	s.MD5H.Write(b)
 
 	return s.CipherWriter.Write(b)
+}
+
+func (s *UploadSession) Cleanup() {
+	s.TempFile.Close()
+	os.Remove(s.TempFile.Name())
 }
 
 type UploadSessionStore struct {

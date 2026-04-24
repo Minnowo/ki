@@ -31,6 +31,7 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	bindAddr := c.Value("bind").(string)
 	port := c.Value("port").(int32)
 	maxUploadByes := c.Value("max-upload-size").(int64)
+	maxUploadChunkByes := c.Value("max-upload-chunk-size").(int64)
 	tlsCert := c.Value("tls-cert").(string)
 
 	if tlsCert != "" {
@@ -52,6 +53,7 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	}
 
 	config.SetMaxUploadSize(maxUploadByes)
+	config.SetMaxChunkSize(maxUploadChunkByes)
 
 	var addr = fmt.Sprintf("%s:%d", bindAddr, port)
 

@@ -44,10 +44,10 @@ func e2eOptions(view *PageUploadView) templ.Component {
 	})
 }
 
-func formUploadScript() templ.ComponentScript {
+func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_formUploadScript_600c`,
-		Function: `function __templ_formUploadScript_600c(){const CHUNK_THRESHOLD = 50 * 1024 * 1024; // use chunked API for files larger than 50 MB
+		Name: `__templ_formUploadScript_a949`,
+		Function: `function __templ_formUploadScript_a949(maxUploadSize, chunkSize){const CHUNK_THRESHOLD = chunkSize;
 
     document.addEventListener('DOMContentLoaded', () => {
 
@@ -63,10 +63,14 @@ func formUploadScript() templ.ComponentScript {
             const fileInput = form.querySelector('input[type="file"]');
             const file = fileInput && fileInput.files[0];
 
-            if (file && file.size > CHUNK_THRESHOLD) {
-                doChunkedUpload(form, file);
-            } else {
-                doSingleUpload(form);
+            if (file) {
+                if (file.size > maxUploadSize) {
+                    alert("File size is too large");
+                } else if (file.size > CHUNK_THRESHOLD) {
+                    doChunkedUpload(form, file);
+                } else {
+                    doSingleUpload(form);
+                }
             }
         });
     });
@@ -241,8 +245,8 @@ func formUploadScript() templ.ComponentScript {
         alert('Upload failed: ' + completeResp.status);
     }
 }`,
-		Call:       templ.SafeScript(`__templ_formUploadScript_600c`),
-		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_600c`),
+		Call:       templ.SafeScript(`__templ_formUploadScript_a949`, maxUploadSize, chunkSize),
+		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_a949`, maxUploadSize, chunkSize),
 	}
 }
 
@@ -279,7 +283,10 @@ func PageUpload(view *PageUploadView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = formUploadScript().Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = formUploadScript(
+				config.MaxUploadSize()-config.KB,
+				config.MaxChunkSize()-config.KB,
+			).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -290,7 +297,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(config.MaxUploadSize()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 234, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 241, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -311,7 +318,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DAYS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 247, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 254, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -324,7 +331,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_HOURS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 251, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 258, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -337,7 +344,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_MINUTES)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 255, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 262, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -350,7 +357,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 259, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 266, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -363,7 +370,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_MEMORY_ONLY)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 264, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 271, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -376,7 +383,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_PASSWORD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 272, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 279, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -389,7 +396,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_FILE)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 276, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 283, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {

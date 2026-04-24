@@ -114,8 +114,16 @@ func main() {
 						Name:     "max-upload-size",
 						Aliases:  []string{"u"},
 						Usage:    "The max number of bytes a file can be",
-						Value:    config.MB * 512,
+						Value:    config.MaxUploadSize(),
 						Sources:  cli.EnvVars("KI_MAX_UPLOAD_SIZE"),
+						Required: false,
+					},
+					&cli.Int64Flag{
+						Name:     "max-upload-chunk-size",
+						Aliases:  []string{"c"},
+						Usage:    "Uploads chunks will be limited to chunks of at most this size. The UI automatically chunks files larger than this value. This is mainly to bypass proxy payload limits (Cloudflare's 100mb free tier or nginx's 1mb default)",
+						Value:    config.MaxChunkSize(),
+						Sources:  cli.EnvVars("KI_MAX_UPLOAD_CHUNK_SIZE"),
 						Required: false,
 					},
 					&cli.StringSliceFlag{

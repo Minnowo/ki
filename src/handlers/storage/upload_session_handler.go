@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -130,12 +131,22 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 				}
 
 				if wErr != nil {
-					log.Info().Err(wErr).Msg("error while writing to the session")
+					log.Error().Err(wErr).Msg("error writing data to disk")
 					return wErr
 				}
 
 				if n != wN {
-					return ErrChunkUploadTruncatedWrite
+					return ErrTruncatedWrite
+				}
+
+				if session.TotalBytes+bytesWritten > config.MaxUploadSize() {
+
+					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
+
+					f.sessionStore.remove(uploadId)
+					session.Cleanup()
+
+					return ErrMaxUploadSizeExceeded
 				}
 			}
 
@@ -145,7 +156,17 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 					return nil
 				}
 
-				log.Info().Err(err).Msg("returning error from AppendChunk")
+				if _, ok := err.(*http.MaxBytesError); ok {
+
+					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
+
+					f.sessionStore.remove(uploadId)
+					session.Cleanup()
+
+					return ErrMaxUploadSizeExceeded
+				}
+
+				log.Debug().Err(err).Msg("returning error from AppendChunk")
 
 				return err
 			}
@@ -234,8 +255,7 @@ func (f *FileUploadHandler) AbortChunkedUpload(uploadId FileID, username string)
 	}
 
 	f.sessionStore.remove(uploadId)
-	session.TempFile.Close()
-	os.Remove(session.TempFile.Name())
+	session.Cleanup()
 
 	log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("aborted chunked upload")
 
