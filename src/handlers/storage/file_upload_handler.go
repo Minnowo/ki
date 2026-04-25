@@ -251,12 +251,7 @@ func (f *FileUploadHandler) ReadNextChunk(w io.Writer, sessionID FileID) (int64,
 			bytesWritten += n
 
 			if n == 0 {
-
-				if err != nil {
-					return err
-				}
-
-				return nil
+				return err
 			}
 
 			if bytesWritten >= config.MaxChunkSize() {
