@@ -28,22 +28,24 @@ var (
 
 // FileUploadHandler handles uploading and downloading files, and keeping them in a file store.
 type FileUploadHandler struct {
-	FileDir         string
-	bcryptCost      int
-	keySize         crypto.AESKeySize
-	metadataStore   FileStore
-	daemonCloseChan chan bool
-	sessionStore    *UploadSessionStore
+	FileDir              string
+	bcryptCost           int
+	keySize              crypto.AESKeySize
+	metadataStore        FileStore
+	daemonCloseChan      chan bool
+	uploadSessionStore   *UploadSessionStore
+	downloadSessionStore *DownloadSessionStore
 }
 
 func NewFileStore(dir string, store FileStore, bcryptCost int) FileUploadHandler {
 	return FileUploadHandler{
-		FileDir:         dir,
-		metadataStore:   store,
-		keySize:         config.AES_KEY_SIZE,
-		bcryptCost:      bcryptCost,
-		daemonCloseChan: nil,
-		sessionStore:    newUploadSessionStore(config.SessionTimeout()),
+		FileDir:              dir,
+		metadataStore:        store,
+		keySize:              config.AES_KEY_SIZE,
+		bcryptCost:           bcryptCost,
+		daemonCloseChan:      nil,
+		uploadSessionStore:   newUploadSessionStore(config.SessionTimeout()),
+		downloadSessionStore: newDownloadSessionStore(config.SessionTimeout()),
 	}
 }
 
@@ -87,7 +89,8 @@ func (f *FileUploadHandler) RunExpireCheckLoop(interval time.Duration) bool {
 			case t := <-ticker.C:
 
 				f.metadataStore.ClearExpiredFiles()
-				f.sessionStore.ClearExpired()
+				f.uploadSessionStore.ClearExpired()
+				f.clearExpiredDownloadSessions()
 
 				log.Debug().Str("time", t.String()).Msg("clearing out expired files")
 			}
@@ -171,6 +174,152 @@ func (f *FileUploadHandler) ReadFile(w io.Writer, key FileID, password string) e
 	}
 
 	return nil
+}
+
+// BeginChunkedDownload validates the file password, opens a new DownloadSession.
+// The returned FileID can be used to call ReadNextChunk to download the file.
+// If the returned error is nil, then the FileID and *KiMetadata should not be used.
+func (f *FileUploadHandler) BeginChunkedDownload(fileID FileID, password string) (FileID, *KiMetadata, error) {
+
+	file, err := f.metadataStore.WithFile(fileID, func(file *KiFile) error {
+
+		if file.IsExpired() {
+			return ErrFileExpired
+		}
+
+		if file.UserSetPassword && !file.PasswordIsValid(password) {
+			return ErrNeedsAuth
+		}
+
+		file.AddDownloader()
+
+		return nil
+	})
+
+	if err != nil {
+		return FileID{}, nil, err
+	}
+
+	stream, err := file.NewReader(password)
+
+	if err != nil {
+		// Undo the AddDownloader we just committed.
+		f.metadataStore.WithFile(fileID, func(file *KiFile) error {
+			file.SubDownloader()
+			return nil
+		})
+		return FileID{}, nil, err
+	}
+
+	var sessionID FileID
+	rand.Read(sessionID[:])
+
+	f.downloadSessionStore.add(sessionID, &DownloadSession{
+		Stream:       stream,
+		TotalBytes:   file.Size,
+		FileID:       fileID,
+		LastActivity: time.Now(),
+		buf:          make([]byte, config.DOWNLOAD_BUFFER_SIZE),
+	})
+
+	log.Info().Hex("id", sessionID[:]).Hex("file", fileID[:]).Msg("began chunked download session")
+
+	return sessionID, file.Metadata(), nil
+}
+
+// ReadNextChunk delivers the next buffer-sized slice of the file to w.
+// If the write to w fails, or the end of chunk is reached, the next call will resume writing from the last written byte.
+// When the stream is exhausted, the session is automatically closed.
+// Returns the number of bytes written, which should be used before an error.
+func (f *FileUploadHandler) ReadNextChunk(w io.Writer, sessionID FileID) (int64, error) {
+
+	session, ok := f.downloadSessionStore.get(sessionID)
+
+	if !ok {
+		return 0, ErrSessionNotFound
+	}
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	bytesWritten := int64(0)
+
+	err := func() error {
+		for {
+			n, err := io.CopyN(w, session, config.MaxChunkSize())
+
+			bytesWritten += n
+
+			if n == 0 {
+
+				if err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			if bytesWritten >= config.MaxChunkSize() {
+				return nil
+			}
+
+			if err != nil {
+				return err
+			}
+		}
+	}()
+
+	session.BytesRead += bytesWritten
+	session.LastActivity = time.Now()
+
+	if session.BytesRead >= session.TotalBytes {
+		f.closeDownloadSession(sessionID, session)
+	}
+
+	return bytesWritten, err
+}
+
+// AbortChunkedDownload cancels an in-progress download session, closing the stream.
+func (f *FileUploadHandler) AbortChunkedDownload(sessionID FileID) error {
+
+	session, ok := f.downloadSessionStore.get(sessionID)
+
+	if !ok {
+		return ErrSessionNotFound
+	}
+
+	f.closeDownloadSession(sessionID, session)
+
+	log.Info().Hex("id", sessionID[:]).Msg("aborted chunked download session")
+
+	return nil
+}
+
+func (f *FileUploadHandler) closeDownloadSession(sessionID FileID, session *DownloadSession) {
+
+	log.Info().Hex("id", sessionID[:]).Msg("download stream closed")
+
+	f.downloadSessionStore.remove(sessionID)
+
+	session.Stream.Close()
+
+	f.metadataStore.WithFile(session.FileID, func(file *KiFile) error {
+		file.SubDownloader()
+		return nil
+	})
+}
+
+func (f *FileUploadHandler) clearExpiredDownloadSessions() {
+
+	for _, session := range f.downloadSessionStore.removeExpired() {
+
+		session.Stream.Close()
+
+		f.metadataStore.WithFile(session.FileID, func(file *KiFile) error {
+			file.SubDownloader()
+			return nil
+		})
+	}
 }
 
 // SaveFile uploads the given file into the file store.

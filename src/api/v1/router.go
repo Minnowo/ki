@@ -75,6 +75,8 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	apiP := api.Methods("POST").Subrouter()
 	apiP.HandleFunc("/api/login", a.api_login)
+	apiP.HandleFunc("/api/download/{fileIdHex}/begin", a.download_begin)
+	apiP.HandleFunc("/api/download/{downloadId}/abort", a.download_abort)
 
 	apiAuth := apiP.NewRoute().Subrouter()
 	apiAuth.Use(auth.RequireAuth())
@@ -86,4 +88,5 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	apiG := api.Methods("GET").Subrouter()
 	apiG.HandleFunc("/api/download/{fileIdHex}", a.file_download)
+	apiG.HandleFunc("/api/download/{downloadId}/chunk", a.download_chunk)
 }

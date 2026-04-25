@@ -42,6 +42,9 @@ const EXPIREY_TIME_FORMAT string = "2006-01-02 15:04:05 MST"
 
 const HOST string = "localhost"
 
+// DOWNLOAD_BUFFER_SIZE is the size of the per-session read buffer for chunked downloads.
+const DOWNLOAD_BUFFER_SIZE int64 = 512 * KB
+
 var (
 	// Total upload for a single file.
 	maxUploadSize int64 = 2 * GB

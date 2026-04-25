@@ -34,7 +34,7 @@ func TestBeginChunkedUpload(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEqual(t, FileID{}, id)
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.True(t, ok, "session should exist in store")
 	})
 
@@ -67,7 +67,7 @@ func TestBeginChunkedUpload(t *testing.T) {
 		f := newTestFileStore(t)
 		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
 
-		session, _ := f.sessionStore.get(id)
+		session, _ := f.uploadSessionStore.get(id)
 		_, err := os.Stat(session.TempFile.Name())
 		assert.NoError(t, err, "temp file should exist on disk")
 	})
@@ -96,7 +96,7 @@ func TestAppendChunk(t *testing.T) {
 		f.AppendChunk(id, "alice", bytes.NewReader(chunk1), int64(len(chunk1)), nil)
 		f.AppendChunk(id, "alice", bytes.NewReader(chunk2), int64(len(chunk2)), nil)
 
-		session, _ := f.sessionStore.get(id)
+		session, _ := f.uploadSessionStore.get(id)
 		assert.Equal(t, int64(len(chunk1)+len(chunk2)), session.TotalBytes)
 	})
 
@@ -148,7 +148,7 @@ func TestCompleteChunkedUpload(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, fileId)
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.False(t, ok, "session should be removed after complete")
 	})
 
@@ -187,13 +187,13 @@ func TestAbortChunkedUpload(t *testing.T) {
 		f := newTestFileStore(t)
 		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
 
-		session, _ := f.sessionStore.get(id)
+		session, _ := f.uploadSessionStore.get(id)
 		tmpPath := session.TempFile.Name()
 
 		err := f.AbortChunkedUpload(id, "alice")
 		assert.NoError(t, err)
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.False(t, ok, "session should be removed")
 
 		_, statErr := os.Stat(tmpPath)
@@ -214,7 +214,7 @@ func TestAbortChunkedUpload(t *testing.T) {
 		err := f.AbortChunkedUpload(id, "bob")
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.True(t, ok, "session should still exist")
 	})
 }
@@ -288,14 +288,14 @@ func TestUploadSessionStore_ClearExpired(t *testing.T) {
 		// Begin a session, then manually back-date its LastActivity.
 		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
 
-		session, _ := f.sessionStore.get(id)
+		session, _ := f.uploadSessionStore.get(id)
 		tmpPath := session.TempFile.Name()
 		session.LastActivity = time.Now().Add(-2 * time.Hour) // far in the past
 
-		f.sessionStore.timeout = time.Minute
-		f.sessionStore.ClearExpired()
+		f.uploadSessionStore.timeout = time.Minute
+		f.uploadSessionStore.ClearExpired()
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.False(t, ok, "expired session should be removed")
 
 		_, statErr := os.Stat(tmpPath)
@@ -306,10 +306,10 @@ func TestUploadSessionStore_ClearExpired(t *testing.T) {
 		f := newTestFileStore(t)
 		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
 
-		f.sessionStore.timeout = time.Minute
-		f.sessionStore.ClearExpired()
+		f.uploadSessionStore.timeout = time.Minute
+		f.uploadSessionStore.ClearExpired()
 
-		_, ok := f.sessionStore.get(id)
+		_, ok := f.uploadSessionStore.get(id)
 		assert.True(t, ok, "active session should not be swept")
 	})
 }

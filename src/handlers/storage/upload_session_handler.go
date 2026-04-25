@@ -88,7 +88,7 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 	var sessionID FileID
 	rand.Read(sessionID[:])
 
-	f.sessionStore.add(sessionID, session)
+	f.uploadSessionStore.add(sessionID, session)
 
 	log.Info().Hex("id", sessionID[:]).Str("username", username).Msg("began chunked upload session")
 
@@ -99,7 +99,7 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 // temp file while updating all running hash states. Chunks must be sent sequentially.
 func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.Reader, limit int64, update func(int)) (int64, error) {
 
-	session, ok := f.sessionStore.get(uploadId)
+	session, ok := f.uploadSessionStore.get(uploadId)
 
 	if !ok {
 		return 0, ErrSessionNotFound
@@ -143,7 +143,7 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 
 					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
 
-					f.sessionStore.remove(uploadId)
+					f.uploadSessionStore.remove(uploadId)
 					session.Cleanup()
 
 					return ErrMaxUploadSizeExceeded
@@ -160,7 +160,7 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 
 					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
 
-					f.sessionStore.remove(uploadId)
+					f.uploadSessionStore.remove(uploadId)
 					session.Cleanup()
 
 					return ErrMaxUploadSizeExceeded
@@ -187,7 +187,7 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 // file store, and returns the new FileID. The session is removed if the file is closed, regardless of if the metadata is put into the store. If adding the metadata into the filestore fails, the file is deleted.
 func (f *FileUploadHandler) CompleteChunkedUpload(uploadId FileID, username string) (*FileID, error) {
 
-	session, ok := f.sessionStore.get(uploadId)
+	session, ok := f.uploadSessionStore.get(uploadId)
 
 	if !ok {
 		return nil, ErrSessionNotFound
@@ -204,7 +204,7 @@ func (f *FileUploadHandler) CompleteChunkedUpload(uploadId FileID, username stri
 		return nil, err
 	}
 
-	f.sessionStore.remove(uploadId)
+	f.uploadSessionStore.remove(uploadId)
 
 	fileId, err := f.metadataStore.StoreFile(&KiFile{
 		UserPasswordHash: session.PasswordHash,
@@ -244,7 +244,7 @@ func (f *FileUploadHandler) CompleteChunkedUpload(uploadId FileID, username stri
 // AbortChunkedUpload cancels an in-progress upload, deleting the temp file.
 func (f *FileUploadHandler) AbortChunkedUpload(uploadId FileID, username string) error {
 
-	session, ok := f.sessionStore.get(uploadId)
+	session, ok := f.uploadSessionStore.get(uploadId)
 
 	if !ok {
 		return ErrSessionNotFound
@@ -254,7 +254,7 @@ func (f *FileUploadHandler) AbortChunkedUpload(uploadId FileID, username string)
 		return ErrSessionNotFound
 	}
 
-	f.sessionStore.remove(uploadId)
+	f.uploadSessionStore.remove(uploadId)
 	session.Cleanup()
 
 	log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("aborted chunked upload")

@@ -9,6 +9,192 @@ import(
     "fmt"
 )
 
+script chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPassword bool) {
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('chunked-dl-btn');
+        if (!btn) return;
+        btn.addEventListener('click', () => doChunkedDownload());
+    });
+
+    function fmtProgress(downloaded, total, startTime) {
+        const pct = ((downloaded / total) * 100).toFixed(1);
+        const elapsed = (Date.now() - startTime) / 1000;
+        const rate = elapsed > 0 ? (downloaded / elapsed / 1024) : 0;
+        const rateStr = rate > 1024
+            ? (rate / 1024).toFixed(1) + ' MB/s'
+            : rate.toFixed(0) + ' KB/s';
+        return downloaded + ' / ' + total + ' bytes (' + pct + '%) @ ' + rateStr;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function doChunkedDownload() {
+
+        const headers = {};
+
+        if (hasPassword) {
+
+            const p = prompt('Enter file password:');
+
+            if (p === null) {
+                return;
+            }
+
+            headers['Authorization'] = 'Basic ' + btoa('0:' + p);
+        }
+
+        const btn = document.getElementById('chunked-dl-btn');
+        const statusEl = document.getElementById('chunked-dl-status');
+        btn.disabled = true;
+
+        // Open the file save picker before any network calls so we are still within
+        // the user-gesture context that showSaveFilePicker() requires.
+        let writable = null;
+        const useFSAA = !!window.showSaveFilePicker;
+
+        if (useFSAA) {
+
+            try {
+                const handle = await window.showSaveFilePicker({ suggestedName: filename });
+                writable = await handle.createWritable();
+            } catch (e) {
+
+                if (e.name === 'AbortError') {
+                    btn.disabled = false;
+                    return;
+                }
+                // FSAA unavailable at runtime; fall back to in-memory.
+                writable = null;
+            }
+        }
+
+        statusEl.textContent = 'Starting download...';
+
+        let downloadId, totalSize;
+        try {
+            const resp = await fetch('/api/download/' + fileIdHex + '/begin', {
+                method: 'POST',
+                headers,
+            });
+
+            if (!resp.ok) {
+                const msg = resp.status === 401 ? 'Invalid password.' : ('Failed to start download: ' + resp.status);
+                alert(msg);
+                if (writable) {
+                    await writable.abort().catch(() => {});
+                }
+                btn.disabled = false;
+                return;
+            }
+
+            const data = await resp.json();
+            downloadId = data.download_id;
+            totalSize  = data.file_size;
+        } catch (e) {
+            alert('Network error: ' + e.message);
+            if (writable) {
+                await writable.abort().catch(() => {});
+            }
+            btn.disabled = false;
+            return;
+        }
+
+        let aborted = false;
+        const startTime = Date.now();
+        let downloaded = 0;
+
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.textContent = 'Cancel';
+        cancel.style.cursor = 'pointer';
+        cancel.onclick = async () => {
+            aborted = true;
+            cancel.disabled = true;
+            statusEl.textContent = 'Cancelling...';
+            await fetch('/api/download/' + downloadId + '/abort', { method: 'POST' }).catch(() => {});
+            if (writable) await writable.abort().catch(() => {});
+            statusEl.textContent = 'Cancelled.';
+            btn.disabled = false;
+            cancel.remove();
+        };
+        statusEl.parentElement.insertBefore(cancel, statusEl);
+
+        const chunks = (writable === null) ? [] : null;
+        let retries = 0;
+
+        while (!aborted && downloaded < totalSize) {
+
+            statusEl.textContent = fmtProgress(downloaded, totalSize, startTime);
+
+            let resp;
+            try {
+                resp = await fetch('/api/download/' + downloadId + '/chunk');
+                retries = 0;
+            } catch (e) {
+                
+                retries++;
+
+                if (retries < 10) {
+                    statusEl.textContent = 'Network error: ' + e.message + '\nWaiting before retrying...';
+                    await sleep(500 * retries);
+                    continue;
+                }
+
+                if (!aborted) {
+                    if (writable) {
+                        await writable.abort().catch(() => {});
+                    }
+                    statusEl.textContent = 'Network error: ' + e.message;
+                    btn.disabled = false; cancel.remove();
+                }
+                return;
+            }
+
+            if (!resp.ok) {
+                if (writable) {
+                    await writable.abort().catch(() => {});
+                }
+                statusEl.textContent = 'Download failed: ' + resp.status;
+                btn.disabled = false; cancel.remove();
+                return;
+            }
+
+            const reader = resp.body.getReader();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (writable) {
+                    await writable.write(value);
+                } else {
+                    chunks.push(value);
+                }
+                downloaded += value.length;
+                statusEl.textContent = fmtProgress(downloaded, totalSize, startTime);
+            }
+        }
+
+        cancel.remove();
+
+        if (!aborted) {
+            if (writable) {
+                await writable.close();
+                statusEl.textContent = 'Download complete!';
+            } else {
+                const blob = new Blob(chunks);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = filename; a.click();
+                URL.revokeObjectURL(url);
+                statusEl.textContent = 'Download triggered!';
+            }
+        }
+
+        btn.disabled = false;
+    }
+}
 
 templ checksumInformation(view *PageDownloadFileView ){ 
 
@@ -134,10 +320,16 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
     @Base(&view.BaseView) {
 
-        {{ 
+        {{
             idHex := view.FileID.Hex()
             ddl   := "/api/download/" + idHex
+            dlFilename := view.File.Name
+            if dlFilename == "" {
+                dlFilename = idHex
+            }
         }}
+
+        @chunkedDownloadScript(idHex, dlFilename, view.File.Size, view.File.UserSetPassword)
 
         <br/>
 
@@ -215,6 +407,12 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
         </tbody>
         </table>
+
+        <br/>
+        <h1>
+            <button id="chunked-dl-btn">Download (chunked)</button>
+        </h1>
+        <div id="chunked-dl-status" style="font-family:monospace;white-space:pre"></div>
 
         @otherDownloadOptions(view, ddl)
 
