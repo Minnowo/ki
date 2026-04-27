@@ -64,7 +64,7 @@ func (a *APIV1) Register(r *mux.Router) {
 	a.router = r
 
 	ui := r.Methods("GET").Subrouter()
-	ui.Use(middleware.TemplNonce)
+	// ui.Use(middleware.TemplNonce)
 	ui.HandleFunc(api.ROUTE__LOGIN, a.ui_login)
 	ui.HandleFunc(api.ROUTE__LOGOUT, a.ui_logout)
 	ui.HandleFunc("/upload", a.ui_upload)

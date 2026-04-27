@@ -28,6 +28,7 @@ download-tools:
 generate:
 	$(TEMPL) generate
 	$(TAILWIND)  -i $(ASSETS)/tailwind.css -o $(ASSETS)/static/c/main.css
+	(cd ./src/ui/ts && npm run build)
 
 format:
 	gofmt -w -s .

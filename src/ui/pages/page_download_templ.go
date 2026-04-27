@@ -19,197 +19,6 @@ import (
 	"time"
 )
 
-func chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPassword bool) templ.ComponentScript {
-	return templ.ComponentScript{
-		Name: `__templ_chunkedDownloadScript_c2a9`,
-		Function: `function __templ_chunkedDownloadScript_c2a9(fileIdHex, filename, fileSize, hasPassword){document.addEventListener('DOMContentLoaded', () => {
-        const btn = document.getElementById('chunked-dl-btn');
-        if (!btn) return;
-        btn.addEventListener('click', () => doChunkedDownload());
-    });
-
-    function fmtProgress(downloaded, total, startTime) {
-        const pct = ((downloaded / total) * 100).toFixed(1);
-        const elapsed = (Date.now() - startTime) / 1000;
-        const rate = elapsed > 0 ? (downloaded / elapsed / 1024) : 0;
-        const rateStr = rate > 1024
-            ? (rate / 1024).toFixed(1) + ' MB/s'
-            : rate.toFixed(0) + ' KB/s';
-        return downloaded + ' / ' + total + ' bytes (' + pct + '%) @ ' + rateStr;
-    }
-
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function doChunkedDownload() {
-
-        const headers = {};
-
-        if (hasPassword) {
-
-            const p = prompt('Enter file password:');
-
-            if (p === null) {
-                return;
-            }
-
-            headers['Authorization'] = 'Basic ' + btoa('0:' + p);
-        }
-
-        const btn = document.getElementById('chunked-dl-btn');
-        const statusEl = document.getElementById('chunked-dl-status');
-        btn.disabled = true;
-
-        // Open the file save picker before any network calls so we are still within
-        // the user-gesture context that showSaveFilePicker() requires.
-        let writable = null;
-        const useFSAA = !!window.showSaveFilePicker;
-
-        if (useFSAA) {
-
-            try {
-                const handle = await window.showSaveFilePicker({ suggestedName: filename });
-                writable = await handle.createWritable();
-            } catch (e) {
-
-                if (e.name === 'AbortError') {
-                    btn.disabled = false;
-                    return;
-                }
-                // FSAA unavailable at runtime; fall back to in-memory.
-                writable = null;
-            }
-        }
-
-        statusEl.textContent = 'Starting download...';
-
-        let downloadId, totalSize;
-        try {
-            const resp = await fetch(` + "`" + `/api/dl/s/init/${fileIdHex}` + "`" + `, {
-                headers,
-            });
-
-            if (!resp.ok) {
-                const msg = resp.status === 401 ? 'Invalid password.' : ('Failed to start download: ' + resp.status);
-                alert(msg);
-                if (writable) {
-                    await writable.abort().catch(() => {});
-                }
-                btn.disabled = false;
-                return;
-            }
-
-            const data = await resp.json();
-            downloadId = data.session_id;
-            totalSize  = data.file_size;
-        } catch (e) {
-            alert('Network error: ' + e.message);
-            if (writable) {
-                await writable.abort().catch(() => {});
-            }
-            btn.disabled = false;
-            return;
-        }
-
-        let aborted = false;
-        const startTime = Date.now();
-        let downloaded = 0;
-
-        const cancel = document.createElement('button');
-        cancel.type = 'button';
-        cancel.textContent = 'Cancel';
-        cancel.style.cursor = 'pointer';
-        cancel.onclick = async () => {
-            aborted = true;
-            cancel.disabled = true;
-            statusEl.textContent = 'Cancelling...';
-            await fetch(` + "`" + `/api/dl/s/done/${fileIdHex}?sid=${downloadId}` + "`" + `).catch(() => {});
-            if (writable) await writable.abort().catch(() => {});
-            statusEl.textContent = 'Cancelled.';
-            btn.disabled = false;
-            cancel.remove();
-        };
-        statusEl.parentElement.insertBefore(cancel, statusEl);
-
-        const chunks = (writable === null) ? [] : null;
-        let retries = 0;
-
-        while (!aborted && downloaded < totalSize) {
-
-            statusEl.textContent = fmtProgress(downloaded, totalSize, startTime);
-
-            let resp;
-            try {
-                resp = await fetch(` + "`" + `/api/dl/s/data/${fileIdHex}?sid=${downloadId}` + "`" + `);
-                retries = 0;
-            } catch (e) {
-                
-                retries++;
-
-                if (retries < 10) {
-                    statusEl.textContent = 'Network error: ' + e.message + '\nWaiting before retrying...';
-                    await sleep(500 * retries);
-                    continue;
-                }
-
-                if (!aborted) {
-                    if (writable) {
-                        await writable.abort().catch(() => {});
-                    }
-                    statusEl.textContent = 'Network error: ' + e.message;
-                    btn.disabled = false; cancel.remove();
-                }
-                return;
-            }
-
-            if (!resp.ok) {
-                if (writable) {
-                    await writable.abort().catch(() => {});
-                }
-                statusEl.textContent = 'Download failed: ' + resp.status;
-                btn.disabled = false; cancel.remove();
-                return;
-            }
-
-            const reader = resp.body.getReader();
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                if (writable) {
-                    await writable.write(value);
-                } else {
-                    chunks.push(value);
-                }
-                downloaded += value.length;
-                statusEl.textContent = fmtProgress(downloaded, totalSize, startTime);
-            }
-        }
-
-        cancel.remove();
-
-        if (!aborted) {
-            if (writable) {
-                await writable.close();
-                statusEl.textContent = 'Download complete!';
-            } else {
-                const blob = new Blob(chunks);
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = filename; a.click();
-                URL.revokeObjectURL(url);
-                statusEl.textContent = 'Download triggered!';
-            }
-        }
-
-        btn.disabled = false;
-    }
-}`,
-		Call:       templ.SafeScript(`__templ_chunkedDownloadScript_c2a9`, fileIdHex, filename, fileSize, hasPassword),
-		CallInline: templ.SafeScriptInline(`__templ_chunkedDownloadScript_c2a9`, fileIdHex, filename, fileSize, hasPassword),
-	}
-}
-
 func checksumInformation(view *PageDownloadFileView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -242,7 +51,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(sha512)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 215, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 29, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +64,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(sha512)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 220, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 34, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -268,7 +77,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(sha256)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 226, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 40, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -281,7 +90,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(sha256)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 231, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 45, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -294,7 +103,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(sha1)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 237, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 51, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -307,7 +116,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(sha1)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 242, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 56, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -320,7 +129,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(md5)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 248, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 62, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -333,7 +142,7 @@ func checksumInformation(view *PageDownloadFileView) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(md5)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 253, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 67, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -387,7 +196,7 @@ func otherDownloadOptions(view *PageDownloadFileView, url string) templ.Componen
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(curlCmd)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 285, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 99, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -400,7 +209,7 @@ func otherDownloadOptions(view *PageDownloadFileView, url string) templ.Componen
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(wgetCmd)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 289, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 103, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -454,7 +263,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("/download/{fileId}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 308, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 122, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -467,7 +276,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs("{fileId}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 309, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 123, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -480,7 +289,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(storage.FileIDSize))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 310, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 124, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -539,18 +348,14 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			if dlFilename == "" {
 				dlFilename = idHex
 			}
-			templ_7745c5c3_Err = chunkedDownloadScript(idHex, dlFilename, view.File.Size, view.File.UserSetPassword).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " <br><h1 title=\"Direct download\"><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<br><div id=\"mount\"></div><h1 title=\"Direct download\"><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var20 templ.SafeURL
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(ddl))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 334, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 148, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -563,7 +368,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(idHex)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 340, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 154, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -586,7 +391,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(view.File.Size))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 350, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 164, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -605,7 +410,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 360, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 174, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -624,7 +429,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(view.File.AllowedDownloads - view.File.Downloads))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 375, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 189, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -643,7 +448,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Expires.Sub(time.Now()).String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 387, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 201, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -662,7 +467,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Expires.Format(config.EXPIREY_TIME_FORMAT))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 399, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 213, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -686,6 +491,46 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = checksumInformation(view).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, " <script>\n\n            window.InitDownload(\n                \"mount\",\n                ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var27, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(idHex)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 236, Col: 24}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, ",\n                ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var28, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(view.File.Name)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 237, Col: 33}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, ",\n                ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var29, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(view.File.UserSetPassword)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 238, Col: 44}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\n            );\n\n        </script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

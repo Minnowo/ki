@@ -39,16 +39,19 @@ func (a *APIV1) file_upload_session_done(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if r.Header.Get("X-Requested-With") == "js-form" {
+		api.WriteJSON(w, struct {
+			FileID string `json:"file_id"`
+		}{
+			FileID: key.Hex(),
+		})
+		return
+	}
+
 	url, err := a.router.Get("download").URL("fileIdHex", key.Hex())
 
 	if err != nil {
 		log.Panic().Str("fileIdHex", key.Hex()).Msg("could not build route url")
-	}
-
-	if r.Header.Get("X-Requested-With") == "js-form" {
-		w.Header().Set("Location", url.String())
-		api.Ok(w)
-		return
 	}
 
 	http.Redirect(w, r, url.String(), http.StatusSeeOther)

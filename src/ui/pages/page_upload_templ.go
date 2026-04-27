@@ -44,212 +44,6 @@ func e2eOptions(view *PageUploadView) templ.Component {
 	})
 }
 
-func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
-	return templ.ComponentScript{
-		Name: `__templ_formUploadScript_87f5`,
-		Function: `function __templ_formUploadScript_87f5(maxUploadSize, chunkSize){const CHUNK_THRESHOLD = chunkSize;
-
-    document.addEventListener('DOMContentLoaded', () => {
-
-        const form = document.querySelector('form[action="/api/ul/full"]');
-
-        if (!form) {
-            return;
-        }
-
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-
-            const fileInput = form.querySelector('input[type="file"]');
-            const file = fileInput && fileInput.files[0];
-
-            if (file) {
-                if (file.size > maxUploadSize) {
-                    alert("File size is too large");
-                } else if (file.size > CHUNK_THRESHOLD) {
-                    doChunkedUpload(form, file);
-                } else {
-                    doSingleUpload(form);
-                }
-            }
-        });
-    });
-
-    function makeProgressUI(form) {
-        const cont = document.createElement('div');
-        cont.style.display = 'flex';
-        cont.style.alignItems = 'center';
-        cont.style.justifyContent = 'center';
-        cont.style.gap = '10px';
-
-        const prog = document.createElement('div');
-        prog.style.whiteSpace = 'pre';
-        prog.style.fontFamily = 'monospace';
-
-        const cancel = document.createElement('button');
-        cancel.type = 'button';
-        cancel.textContent = 'Cancel';
-        cancel.style.cursor = 'pointer';
-
-        cont.appendChild(prog);
-        cont.appendChild(cancel);
-        form.parentElement.insertBefore(cont, form);
-
-        return { cont, prog, cancel };
-    }
-
-    function fmtProgress(loaded, total, startTime) {
-        const percent = ((loaded / total) * 100).toFixed(1);
-        const rateBps = (loaded / ((Date.now() - startTime) / 1000)) / 1024;
-        const rateStr = rateBps > 1024
-            ? (rateBps / 1024).toFixed(2) + ' MB/s'
-            : rateBps.toFixed(1) + ' KB/s';
-        return ` + "`" + `${loaded} / ${total} bytes (${percent}%) @ ${rateStr}` + "`" + `;
-    }
-
-    function doSingleUpload(form) {
-        const { cont, prog, cancel } = makeProgressUI(form);
-        const xhr = new XMLHttpRequest();
-        const startTime = Date.now();
-
-        cancel.onclick = () => { xhr.abort(); cont.remove(); };
-
-        xhr.open(form.method, form.action, true);
-        xhr.setRequestHeader('X-Requested-With', 'js-form');
-
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                prog.textContent = fmtProgress(e.loaded, e.total, startTime);
-            }
-        };
-
-        xhr.onload = () => {
-            const location = xhr.getResponseHeader('Location');
-            if (location && xhr.status === 200) {
-                window.location.href = location;
-            } else {
-                cont.remove();
-                alert('Upload failed: ' + xhr.status);
-            }
-        };
-
-        xhr.onerror = () => { cont.remove(); alert('Network error during upload.'); };
-
-        xhr.send(new FormData(form));
-    }
-
-    async function doChunkedUpload(form, file) {
-        const { cont, prog, cancel } = makeProgressUI(form);
-        let uploadId = null;
-        let aborted = false;
-        let currentXHR = null;
-
-        cancel.onclick = () => {
-            aborted = true;
-            if (currentXHR) currentXHR.abort();
-            if (uploadId) {
-                fetch('/api/ul/s/abort?sid=' + uploadId, { method: 'POST' }).catch(() => {});
-            }
-            cont.remove();
-        };
-
-        prog.textContent = 'Starting upload...';
-
-        // 1. Begin: send metadata only (tiny payload, fetch is fine).
-        const beginData = new FormData();
-        beginData.set('__csrf__',            form.querySelector('[name="__csrf__"]').value);
-        beginData.set('expire_days',         form.querySelector('[name="expire_days"]').value);
-        beginData.set('expire_hours',        form.querySelector('[name="expire_hours"]').value);
-        beginData.set('expire_minutes',      form.querySelector('[name="expire_minutes"]').value);
-        beginData.set('expire_downloads',    form.querySelector('[name="expire_downloads"]').value);
-        beginData.set('memory_only',         form.querySelector('[name="memory_only"]').value);
-        beginData.set('password_2_download', form.querySelector('[name="password_2_download"]').value);
-        beginData.set('filename',            file.name);
-
-        let beginResp;
-        try {
-            beginResp = await fetch('/api/ul/s/init', { method: 'POST', body: beginData });
-        } catch (e) {
-            cont.remove(); alert('Network error during upload.'); return;
-        }
-        if (!beginResp.ok) {
-            cont.remove(); alert('Upload failed: ' + await beginResp.text()); return;
-        }
-
-        const { upload_id, max_chunk_size } = await beginResp.json();
-        uploadId = upload_id;
-        const chunkSize = max_chunk_size || (10 * 1024 * 1024);
-
-        // 2. Send chunks with XHR so xhr.upload.onprogress fires within each chunk.
-        let offset = 0;
-        const total = file.size;
-        const startTime = Date.now();
-
-        while (offset < total) {
-            if (aborted) return;
-
-            const chunk = file.slice(offset, offset + chunkSize);
-            const chunkOffset = offset; // bytes fully uploaded before this chunk
-
-            const err = await new Promise((resolve) => {
-                const xhr = new XMLHttpRequest();
-                currentXHR = xhr;
-
-                xhr.open('POST', '/api/ul/s/data?sid=' + uploadId, true);
-                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        prog.textContent = fmtProgress(chunkOffset + e.loaded, total, startTime);
-                    }
-                };
-
-                xhr.onload = () => {
-                    currentXHR = null;
-                    resolve(xhr.status === 200 ? null : (xhr.responseText || String(xhr.status)));
-                };
-                xhr.onerror = () => { currentXHR = null; resolve('Network error'); };
-                xhr.onabort = () => { currentXHR = null; resolve('aborted'); };
-
-                xhr.send(chunk);
-            });
-
-            if (aborted) return;
-            if (err) { cont.remove(); alert('Upload failed: ' + err); return; }
-
-            offset += chunk.size;
-            prog.textContent = fmtProgress(offset, total, startTime);
-        }
-
-        if (aborted) return;
-
-        // 3. Complete (no body, fetch is fine).
-        prog.textContent = 'Finalising...';
-
-        let completeResp;
-        try {
-            completeResp = await fetch('/api/ul/s/done?sid=' + uploadId, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'js-form' },
-            });
-        } catch (e) {
-            cont.remove(); alert('Network error during upload.'); return;
-        }
-
-        if (completeResp.ok) {
-            const location = completeResp.headers.get('Location');
-            if (location) { window.location.href = location; return; }
-        }
-
-        cont.remove();
-        alert('Upload failed: ' + completeResp.status);
-    }
-}`,
-		Call:       templ.SafeScript(`__templ_formUploadScript_87f5`, maxUploadSize, chunkSize),
-		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_87f5`, maxUploadSize, chunkSize),
-	}
-}
-
 func PageUpload(view *PageUploadView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -283,27 +77,20 @@ func PageUpload(view *PageUploadView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = formUploadScript(
-				config.MaxUploadSize()-config.KB,
-				config.MaxChunkSize()-config.KB,
-			).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " <br><h1>Upload a file</h1><h3>File must be less than ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<br><h1>Upload a file</h1><h3>File must be less than ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(bytes.PrettyByteSize64(config.MaxUploadSize()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 241, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 35, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</h3><br><form enctype=\"multipart/form-data\" action=\"/api/ul/full\" method=\"POST\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</h3><br><div id=\"mount\"></div><form id=\"upload_form\" enctype=\"multipart/form-data\" action=\"/api/ul/full\" method=\"POST\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -318,7 +105,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DAYS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 254, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 49, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -331,7 +118,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_HOURS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 258, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 53, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -344,7 +131,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_MINUTES)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 262, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 57, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -357,7 +144,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 266, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 61, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -370,7 +157,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_MEMORY_ONLY)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 271, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 66, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -383,7 +170,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_PASSWORD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 279, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 74, Col: 99}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -396,7 +183,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(formkeys.UPLOAD_FORM_FILE)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 283, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 78, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -407,6 +194,34 @@ func PageUpload(view *PageUploadView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = e2eOptions(view).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " <script>\n            window.InitUpload(\n                \"mount\",\n                \"upload_form\",\n                ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var12, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(config.MaxUploadSize() - config.KB)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 99, Col: 53}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, ",\n                ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Var13, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(config.MaxChunkSize() - config.KB)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_upload.templ`, Line: 100, Col: 52}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\n            );\n        </script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
