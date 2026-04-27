@@ -247,10 +247,7 @@ func TestChunkedUpload_EndToEnd(t *testing.T) {
 				// 2. Three chunks
 				chunkSize := len(data) / 3
 				for i := 0; i < len(data); i += chunkSize {
-					end := i + chunkSize
-					if end > len(data) {
-						end = len(data)
-					}
+					end := min(i+chunkSize, len(data))
 					n, err := f.UploadSessionData(id, "alice", bytes.NewReader(data[i:end]), int64(len(data)), nil)
 					assert.NoError(err)
 					assert.Equal(int64(end-i), n)
