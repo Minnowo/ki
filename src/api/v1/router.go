@@ -13,6 +13,7 @@ import (
 	"ki/src/pkg/proxy"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -105,6 +106,15 @@ func getFileID(r *http.Request, fileId *storage.FileID) bool {
 }
 
 func getSessionID(r *http.Request, sessionId *storage.SessionToken) bool {
+
+	auth := r.Header.Get("Authorization")
+
+	if token, ok := strings.CutPrefix(auth, "Bearer "); ok {
+
+		if sessionId.FromHex(token) == nil {
+			return true
+		}
+	}
 
 	cookie, err := r.Cookie("sid")
 
