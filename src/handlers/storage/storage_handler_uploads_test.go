@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func newTestFileStore(t *testing.T) FileUploadHandler {
+func newTestFileStore(t *testing.T) StorageHandler {
 	t.Helper()
 	return NewFileStore(t.TempDir(), NewMemoryFileStore(), bcrypt.MinCost)
 }
@@ -30,7 +30,7 @@ func TestBeginChunkedUpload(t *testing.T) {
 
 	t.Run("valid upload creates session", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, err := f.BeginChunkedUpload(validUpload(), "alice")
+		id, err := f.CreateUploadSession(validUpload(), "alice")
 		assert.NoError(t, err)
 		assert.NotEqual(t, FileID{}, id)
 
@@ -43,7 +43,7 @@ func TestBeginChunkedUpload(t *testing.T) {
 		upload := validUpload()
 		upload.ExpiresIn = 30 * time.Second // less than required 1 minute
 
-		_, err := f.BeginChunkedUpload(upload, "alice")
+		_, err := f.CreateUploadSession(upload, "alice")
 		assert.Error(t, err)
 	})
 
@@ -52,20 +52,20 @@ func TestBeginChunkedUpload(t *testing.T) {
 		upload := validUpload()
 		upload.AllowedDownloads = 0
 
-		_, err := f.BeginChunkedUpload(upload, "alice")
+		_, err := f.CreateUploadSession(upload, "alice")
 		assert.Error(t, err)
 	})
 
 	t.Run("different sessions get different IDs", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id1, _ := f.BeginChunkedUpload(validUpload(), "alice")
-		id2, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id1, _ := f.CreateUploadSession(validUpload(), "alice")
+		id2, _ := f.CreateUploadSession(validUpload(), "alice")
 		assert.NotEqual(t, id1, id2)
 	})
 
 	t.Run("temp file is created on disk", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		session, _ := f.uploadSessionStore.get(id)
 		_, err := os.Stat(session.TempFile.Name())
@@ -79,22 +79,22 @@ func TestAppendChunk(t *testing.T) {
 
 	t.Run("chunk is written and byte count returned", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		data := []byte("hello world chunk data")
-		n, err := f.AppendChunk(id, "alice", bytes.NewReader(data), int64(len(data)), nil)
+		n, err := f.UploadSessionData(id, "alice", bytes.NewReader(data), int64(len(data)), nil)
 		assert.NoError(t, err)
 		assert.Equal(t, int64(len(data)), n)
 	})
 
 	t.Run("total bytes accumulate across chunks", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		chunk1 := []byte("first chunk")
 		chunk2 := []byte("second chunk")
-		f.AppendChunk(id, "alice", bytes.NewReader(chunk1), int64(len(chunk1)), nil)
-		f.AppendChunk(id, "alice", bytes.NewReader(chunk2), int64(len(chunk2)), nil)
+		f.UploadSessionData(id, "alice", bytes.NewReader(chunk1), int64(len(chunk1)), nil)
+		f.UploadSessionData(id, "alice", bytes.NewReader(chunk2), int64(len(chunk2)), nil)
 
 		session, _ := f.uploadSessionStore.get(id)
 		assert.Equal(t, int64(len(chunk1)+len(chunk2)), session.TotalBytes)
@@ -102,35 +102,35 @@ func TestAppendChunk(t *testing.T) {
 
 	t.Run("chunk is capped to limit", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		data := []byte("this is longer than the limit")
 		limit := int64(4)
-		n, err := f.AppendChunk(id, "alice", bytes.NewReader(data), limit, nil)
+		n, err := f.UploadSessionData(id, "alice", bytes.NewReader(data), limit, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, limit, n)
 	})
 
 	t.Run("update callback is called", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		called := 0
-		f.AppendChunk(id, "alice", bytes.NewReader([]byte("abc")), 1024, func(n int) { called++ })
+		f.UploadSessionData(id, "alice", bytes.NewReader([]byte("abc")), 1024, func(n int) { called++ })
 		assert.Greater(t, called, 0)
 	})
 
 	t.Run("unknown session returns ErrSessionNotFound", func(t *testing.T) {
 		f := newTestFileStore(t)
-		var unknownID FileID
-		_, err := f.AppendChunk(unknownID, "alice", bytes.NewReader(nil), 1024, nil)
+		var unknownID SessionToken
+		_, err := f.UploadSessionData(unknownID, "alice", bytes.NewReader(nil), 1024, nil)
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 	})
 
 	t.Run("wrong username returns ErrSessionNotFound", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
-		_, err := f.AppendChunk(id, "bob", bytes.NewReader([]byte("data")), 1024, nil)
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
+		_, err := f.UploadSessionData(id, "bob", bytes.NewReader([]byte("data")), 1024, nil)
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 	})
 }
@@ -141,10 +141,10 @@ func TestCompleteChunkedUpload(t *testing.T) {
 
 	t.Run("returns file ID and removes session", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
-		f.AppendChunk(id, "alice", bytes.NewReader([]byte("content")), 1024, nil)
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
+		f.UploadSessionData(id, "alice", bytes.NewReader([]byte("content")), 1024, nil)
 
-		fileId, err := f.CompleteChunkedUpload(id, "alice")
+		fileId, err := f.CompleteUploadSession(id, "alice")
 		assert.NoError(t, err)
 		assert.NotNil(t, fileId)
 
@@ -154,11 +154,11 @@ func TestCompleteChunkedUpload(t *testing.T) {
 
 	t.Run("metadata is stored in file store", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
-		f.AppendChunk(id, "alice", bytes.NewReader([]byte("content")), 1024, nil)
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
+		f.UploadSessionData(id, "alice", bytes.NewReader([]byte("content")), 1024, nil)
 
-		fileId, _ := f.CompleteChunkedUpload(id, "alice")
-		meta := f.GetFile(*fileId)
+		fileId, _ := f.CompleteUploadSession(id, "alice")
+		meta := f.FileMetadata(*fileId)
 		assert.NotNil(t, meta)
 		assert.Equal(t, "test.txt", meta.Name)
 		assert.Equal(t, int64(7), meta.Size)
@@ -166,15 +166,15 @@ func TestCompleteChunkedUpload(t *testing.T) {
 
 	t.Run("unknown session returns ErrSessionNotFound", func(t *testing.T) {
 		f := newTestFileStore(t)
-		var unknownID FileID
-		_, err := f.CompleteChunkedUpload(unknownID, "alice")
+		var unknownID SessionToken
+		_, err := f.CompleteUploadSession(unknownID, "alice")
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 	})
 
 	t.Run("wrong username returns ErrSessionNotFound", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
-		_, err := f.CompleteChunkedUpload(id, "bob")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
+		_, err := f.CompleteUploadSession(id, "bob")
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 	})
 }
@@ -185,12 +185,12 @@ func TestAbortChunkedUpload(t *testing.T) {
 
 	t.Run("removes session and deletes temp file", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		session, _ := f.uploadSessionStore.get(id)
 		tmpPath := session.TempFile.Name()
 
-		err := f.AbortChunkedUpload(id, "alice")
+		err := f.AbortUploadSession(id, "alice")
 		assert.NoError(t, err)
 
 		_, ok := f.uploadSessionStore.get(id)
@@ -202,16 +202,16 @@ func TestAbortChunkedUpload(t *testing.T) {
 
 	t.Run("unknown session returns ErrSessionNotFound", func(t *testing.T) {
 		f := newTestFileStore(t)
-		var unknownID FileID
-		err := f.AbortChunkedUpload(unknownID, "alice")
+		var unknownID SessionToken
+		err := f.AbortUploadSession(unknownID, "alice")
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 	})
 
 	t.Run("wrong username leaves session intact", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
-		err := f.AbortChunkedUpload(id, "bob")
+		err := f.AbortUploadSession(id, "bob")
 		assert.ErrorIs(t, err, ErrSessionNotFound)
 
 		_, ok := f.uploadSessionStore.get(id)
@@ -241,7 +241,7 @@ func TestChunkedUpload_EndToEnd(t *testing.T) {
 				}
 
 				// 1. Begin
-				id, err := f.BeginChunkedUpload(upload, "alice")
+				id, err := f.CreateUploadSession(upload, "alice")
 				assert.NoError(err)
 
 				// 2. Three chunks
@@ -251,18 +251,18 @@ func TestChunkedUpload_EndToEnd(t *testing.T) {
 					if end > len(data) {
 						end = len(data)
 					}
-					n, err := f.AppendChunk(id, "alice", bytes.NewReader(data[i:end]), int64(len(data)), nil)
+					n, err := f.UploadSessionData(id, "alice", bytes.NewReader(data[i:end]), int64(len(data)), nil)
 					assert.NoError(err)
 					assert.Equal(int64(end-i), n)
 				}
 
 				// 3. Complete
-				fileId, err := f.CompleteChunkedUpload(id, "alice")
+				fileId, err := f.CompleteUploadSession(id, "alice")
 				assert.NoError(err)
 				assert.NotNil(fileId)
 
 				// 4. Verify metadata
-				meta := f.GetFile(*fileId)
+				meta := f.FileMetadata(*fileId)
 				assert.NotNil(meta)
 				assert.Equal("fox.txt", meta.Name)
 				assert.Equal(int64(len(data)), meta.Size)
@@ -286,7 +286,7 @@ func TestUploadSessionStore_ClearExpired(t *testing.T) {
 		f := newTestFileStore(t)
 
 		// Begin a session, then manually back-date its LastActivity.
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		session, _ := f.uploadSessionStore.get(id)
 		tmpPath := session.TempFile.Name()
@@ -304,7 +304,7 @@ func TestUploadSessionStore_ClearExpired(t *testing.T) {
 
 	t.Run("active sessions are not swept", func(t *testing.T) {
 		f := newTestFileStore(t)
-		id, _ := f.BeginChunkedUpload(validUpload(), "alice")
+		id, _ := f.CreateUploadSession(validUpload(), "alice")
 
 		f.uploadSessionStore.timeout = time.Minute
 		f.uploadSessionStore.ClearExpired()

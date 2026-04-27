@@ -32,7 +32,7 @@ script formUploadScript(maxUploadSize, chunkSize int64) {
 
     document.addEventListener('DOMContentLoaded', () => {
 
-        const form = document.querySelector('form[action="/api/upload"]');
+        const form = document.querySelector('form[action="/api/ul/full"]');
 
         if (!form) {
             return;
@@ -129,7 +129,7 @@ script formUploadScript(maxUploadSize, chunkSize int64) {
             aborted = true;
             if (currentXHR) currentXHR.abort();
             if (uploadId) {
-                fetch('/api/upload/' + uploadId + '/abort', { method: 'POST' }).catch(() => {});
+                fetch('/api/ul/s/abort?sid=' + uploadId, { method: 'POST' }).catch(() => {});
             }
             cont.remove();
         };
@@ -149,7 +149,7 @@ script formUploadScript(maxUploadSize, chunkSize int64) {
 
         let beginResp;
         try {
-            beginResp = await fetch('/api/upload/begin', { method: 'POST', body: beginData });
+            beginResp = await fetch('/api/ul/s/init', { method: 'POST', body: beginData });
         } catch (e) {
             cont.remove(); alert('Network error during upload.'); return;
         }
@@ -176,7 +176,7 @@ script formUploadScript(maxUploadSize, chunkSize int64) {
                 const xhr = new XMLHttpRequest();
                 currentXHR = xhr;
 
-                xhr.open('POST', '/api/upload/' + uploadId + '/chunk', true);
+                xhr.open('POST', '/api/ul/s/data?sid=' + uploadId, true);
                 xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
                 xhr.upload.onprogress = (e) => {
@@ -209,7 +209,7 @@ script formUploadScript(maxUploadSize, chunkSize int64) {
 
         let completeResp;
         try {
-            completeResp = await fetch('/api/upload/' + uploadId + '/complete', {
+            completeResp = await fetch('/api/ul/s/done?sid=' + uploadId, {
                 method: 'POST',
                 headers: { 'X-Requested-With': 'js-form' },
             });
@@ -241,7 +241,7 @@ templ PageUpload(view *PageUploadView) {
         <h3>File must be less than { bytes.PrettyByteSize64(config.MaxUploadSize()) } </h3>
         <br/>
 
-        <form enctype="multipart/form-data" action="/api/upload" method="POST">
+        <form enctype="multipart/form-data" action="/api/ul/full" method="POST">
 
             @ui.CSRF(view.R)
 

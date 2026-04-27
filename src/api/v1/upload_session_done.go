@@ -7,12 +7,11 @@ import (
 	"ki/src/handlers/storage"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
 
-// file_upload_complete finalises a chunked upload and redirects the client to the download page.
-func (a *APIV1) file_upload_complete(w http.ResponseWriter, r *http.Request) {
+// file_upload_session_done finalises a chunked upload and redirects the client to the download page.
+func (a *APIV1) file_upload_session_done(w http.ResponseWriter, r *http.Request) {
 
 	username, ok := auth.GetUser(r)
 
@@ -21,20 +20,20 @@ func (a *APIV1) file_upload_complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var uploadId storage.FileID
+	var sessionID storage.SessionToken
 
-	if err := uploadId.FromHex(mux.Vars(r)["uploadId"]); err != nil {
-		api.Done(w, http.StatusBadRequest, "invalid file ID")
+	if !getSessionID(r, &sessionID) {
+		api.Done(w, http.StatusBadRequest, "invalid session ID")
 		return
 	}
 
-	key, err := a.fileStore.CompleteChunkedUpload(uploadId, username)
+	key, err := a.fileStore.CompleteUploadSession(sessionID, username)
 
 	if err != nil {
 		if errors.Is(err, storage.ErrSessionNotFound) {
 			api.Done(w, http.StatusNotFound, "upload session not found")
 		} else {
-			log.Error().Err(err).Hex("id", uploadId[:]).Msg("complete chunked upload error")
+			log.Error().Err(err).Hex("id", sessionID[:]).Msg("complete chunked upload error")
 			api.Done(w, http.StatusInternalServerError, "error finalising upload")
 		}
 		return

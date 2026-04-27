@@ -62,7 +62,7 @@ func beginUpload(t *testing.T, router *mux.Router, sessionTok string) string {
 	csrfTok := csrf.NewToken()
 	body, ct := buildBeginForm(t, csrfTok)
 
-	r := httptest.NewRequest("POST", "/api/upload/begin", body)
+	r := httptest.NewRequest("POST", "/api/ul/s/init", body)
 	r.Header.Set("Content-Type", ct)
 	r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 	r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
@@ -91,7 +91,7 @@ func TestFileUploadBegin(t *testing.T) {
 		csrfTok := csrf.NewToken()
 		body, ct := buildBeginForm(t, csrfTok)
 
-		r := httptest.NewRequest("POST", "/api/upload/begin", body)
+		r := httptest.NewRequest("POST", "/api/ul/s/init", body)
 		r.Header.Set("Content-Type", ct)
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
@@ -116,7 +116,7 @@ func TestFileUploadBegin(t *testing.T) {
 		csrfTok := csrf.NewToken()
 		body, ct := buildBeginForm(t, csrfTok)
 
-		r := httptest.NewRequest("POST", "/api/upload/begin", body)
+		r := httptest.NewRequest("POST", "/api/ul/s/init", body)
 		r.Header.Set("Content-Type", ct)
 		r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
 
@@ -131,7 +131,7 @@ func TestFileUploadBegin(t *testing.T) {
 
 		body, ct := buildBeginForm(t, csrf.NewToken()) // token doesn't match cookie
 
-		r := httptest.NewRequest("POST", "/api/upload/begin", body)
+		r := httptest.NewRequest("POST", "/api/ul/s/init", body)
 		r.Header.Set("Content-Type", ct)
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrf.NewToken()}) // mismatch
@@ -158,7 +158,7 @@ func TestFileUploadBegin(t *testing.T) {
 		mw.WriteField(formkeys.UPLOAD_FORM_FILENAME, "f.txt")
 		mw.Close()
 
-		r := httptest.NewRequest("POST", "/api/upload/begin", &buf)
+		r := httptest.NewRequest("POST", "/api/ul/s/init", &buf)
 		r.Header.Set("Content-Type", mw.FormDataContentType())
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
@@ -185,7 +185,7 @@ func TestFileUploadBegin(t *testing.T) {
 		mw.WriteField(formkeys.UPLOAD_FORM_FILENAME, "f.txt")
 		mw.Close()
 
-		r := httptest.NewRequest("POST", "/api/upload/begin", &buf)
+		r := httptest.NewRequest("POST", "/api/ul/s/init", &buf)
 		r.Header.Set("Content-Type", mw.FormDataContentType())
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		r.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
@@ -206,7 +206,7 @@ func TestFileUploadChunk(t *testing.T) {
 		uploadId := beginUpload(t, router, sessionTok)
 
 		data := []byte("chunk payload data")
-		r := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/chunk", bytes.NewReader(data))
+		r := httptest.NewRequest("POST", "/api/ul/s/data?sid="+uploadId, bytes.NewReader(data))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 
@@ -226,7 +226,7 @@ func TestFileUploadChunk(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 		uploadId := beginUpload(t, router, sessionTok)
 
-		r := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/chunk", bytes.NewReader([]byte("x")))
+		r := httptest.NewRequest("POST", "/api/ul/s/data?sid="+uploadId, bytes.NewReader([]byte("x")))
 		r.Header.Set("Content-Type", "application/octet-stream")
 
 		w := httptest.NewRecorder()
@@ -238,7 +238,7 @@ func TestFileUploadChunk(t *testing.T) {
 	t.Run("invalid upload ID returns 400", func(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 
-		r := httptest.NewRequest("POST", "/api/upload/notvalidhex/chunk", bytes.NewReader([]byte("x")))
+		r := httptest.NewRequest("POST", "/api/ul/s/data?sid=notvalidhex", bytes.NewReader([]byte("x")))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 
@@ -252,7 +252,7 @@ func TestFileUploadChunk(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 		unknownId := strings.Repeat("ab", 16) // valid hex, no session
 
-		r := httptest.NewRequest("POST", "/api/upload/"+unknownId+"/chunk", bytes.NewReader([]byte("x")))
+		r := httptest.NewRequest("POST", "/api/ul/s/data?sid="+unknownId, bytes.NewReader([]byte("x")))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 
@@ -272,13 +272,13 @@ func TestFileUploadComplete(t *testing.T) {
 		uploadId := beginUpload(t, router, sessionTok)
 
 		// Send one chunk
-		r := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/chunk", bytes.NewReader([]byte("content")))
+		r := httptest.NewRequest("POST", "/api/ul/s/data?sid="+uploadId, bytes.NewReader([]byte("content")))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		router.ServeHTTP(httptest.NewRecorder(), r)
 
 		// Complete
-		r2 := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/complete", nil)
+		r2 := httptest.NewRequest("POST", "/api/ul/s/done?sid="+uploadId, nil)
 		r2.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w2 := httptest.NewRecorder()
 		router.ServeHTTP(w2, r2)
@@ -291,7 +291,7 @@ func TestFileUploadComplete(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 		uploadId := beginUpload(t, router, sessionTok)
 
-		r := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/complete", nil)
+		r := httptest.NewRequest("POST", "/api/ul/s/done?sid="+uploadId, nil)
 		r.Header.Set("X-Requested-With", "js-form")
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w := httptest.NewRecorder()
@@ -305,7 +305,7 @@ func TestFileUploadComplete(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 		unknownId := strings.Repeat("cd", 16)
 
-		r := httptest.NewRequest("POST", "/api/upload/"+unknownId+"/complete", nil)
+		r := httptest.NewRequest("POST", "/api/ul/s/done?sid="+unknownId, nil)
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
@@ -322,7 +322,7 @@ func TestFileUploadAbort(t *testing.T) {
 		apiv, router, sessionTok := setupAPI(t, "alice")
 		uploadId := beginUpload(t, router, sessionTok)
 
-		r := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/abort", nil)
+		r := httptest.NewRequest("POST", "/api/ul/s/abort?sid="+uploadId, nil)
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
@@ -330,7 +330,7 @@ func TestFileUploadAbort(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 
 		// A subsequent chunk to the same ID should now 404.
-		r2 := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/chunk", bytes.NewReader([]byte("x")))
+		r2 := httptest.NewRequest("POST", "/api/ul/s/abort?sid="+uploadId, bytes.NewReader([]byte("x")))
 		r2.Header.Set("Content-Type", "application/octet-stream")
 		r2.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w2 := httptest.NewRecorder()
@@ -343,7 +343,7 @@ func TestFileUploadAbort(t *testing.T) {
 		_, router, sessionTok := setupAPI(t, "alice")
 		unknownId := strings.Repeat("ef", 16)
 
-		r := httptest.NewRequest("POST", "/api/upload/"+unknownId+"/abort", nil)
+		r := httptest.NewRequest("POST", "/api/ul/s/abort?sid="+unknownId, nil)
 		r.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
@@ -372,7 +372,7 @@ func TestChunkedUploadHTTP_FullFlow(t *testing.T) {
 			csrfTok := csrf.NewToken()
 			beginBody, ct := buildBeginForm(t, csrfTok)
 
-			r1 := httptest.NewRequest("POST", "/api/upload/begin", beginBody)
+			r1 := httptest.NewRequest("POST", "/api/ul/s/init", beginBody)
 			r1.Header.Set("Content-Type", ct)
 			r1.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 			r1.AddCookie(&http.Cookie{Name: config.CSRF_COOKIE, Value: csrfTok})
@@ -390,7 +390,7 @@ func TestChunkedUploadHTTP_FullFlow(t *testing.T) {
 			// 2. Two chunks
 			half := len(content) / 2
 			for _, chunk := range [][]byte{content[:half], content[half:]} {
-				rc := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/chunk", bytes.NewReader(chunk))
+				rc := httptest.NewRequest("POST", "/api/ul/s/data?sid="+uploadId, bytes.NewReader(chunk))
 				rc.Header.Set("Content-Type", "application/octet-stream")
 				rc.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 				wc := httptest.NewRecorder()
@@ -399,7 +399,7 @@ func TestChunkedUploadHTTP_FullFlow(t *testing.T) {
 			}
 
 			// 3. Complete
-			r3 := httptest.NewRequest("POST", "/api/upload/"+uploadId+"/complete", nil)
+			r3 := httptest.NewRequest("POST", "/api/ul/s/done?sid="+uploadId, nil)
 			r3.AddCookie(&http.Cookie{Name: config.SESSION_COOKIE, Value: sessionTok})
 			if jsForm {
 				r3.Header.Set("X-Requested-With", "js-form")
@@ -420,7 +420,7 @@ func TestChunkedUploadHTTP_FullFlow(t *testing.T) {
 
 			// 4. Download and verify content
 			fileIdHex := strings.TrimPrefix(location, "/download/")
-			r4 := httptest.NewRequest("GET", "/api/download/"+fileIdHex, nil)
+			r4 := httptest.NewRequest("GET", "/api/dl/full/"+fileIdHex, nil)
 			w4 := httptest.NewRecorder()
 			router.ServeHTTP(w4, r4)
 			assert.Equal(http.StatusOK, w4.Code)

@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
 
-// file_upload_chunk appends a raw binary chunk to an in-progress upload session.
+// file_upload_session_data appends a raw binary chunk to an in-progress upload session.
 // Chunks must be sent sequentially; the AES-CTR cipher state is maintained server-side.
-func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
+func (a *APIV1) file_upload_session_data(w http.ResponseWriter, r *http.Request) {
 
 	username, ok := auth.GetUser(r)
 
@@ -24,14 +23,14 @@ func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var uploadId storage.FileID
+	var sessionID storage.SessionToken
 
-	if err := uploadId.FromHex(mux.Vars(r)["uploadId"]); err != nil {
+	if !getSessionID(r, &sessionID) {
 		api.Done(w, http.StatusBadRequest, "invalid file ID")
 		return
 	}
 
-	log.Info().Str("username", username).Hex("g", uploadId[:]).Msg("chunk")
+	log.Info().Str("username", username).Hex("g", sessionID[:]).Msg("chunk")
 
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxChunkSize())
 	rc := http.NewResponseController(w)
@@ -42,7 +41,7 @@ func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
 		rc.SetWriteDeadline(deadline)
 	}
 
-	n, err := a.fileStore.AppendChunk(uploadId, username, r.Body, config.MaxChunkSize(), timeoutHelper)
+	n, err := a.fileStore.UploadSessionData(sessionID, username, r.Body, config.MaxChunkSize(), timeoutHelper)
 
 	if err != nil {
 		if errors.Is(err, storage.ErrSessionNotFound) {
@@ -50,7 +49,7 @@ func (a *APIV1) file_upload_chunk(w http.ResponseWriter, r *http.Request) {
 		} else if errors.Is(err, storage.ErrMaxUploadSizeExceeded) {
 			api.Done(w, http.StatusRequestEntityTooLarge, "max upload limit exceeded")
 		} else {
-			log.Error().Err(err).Hex("id", uploadId[:]).Msg("chunk write error")
+			log.Error().Err(err).Hex("id", sessionID[:]).Msg("chunk write error")
 			api.Done(w, http.StatusInternalServerError, "error writing chunk")
 		}
 		return

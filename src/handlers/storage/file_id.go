@@ -3,13 +3,14 @@ package storage
 import (
 	"encoding/hex"
 	"errors"
-	"ki/src/config"
 	"strings"
 )
 
 var ErrInvalidFileID = errors.New("invalid file ID")
 
-type FileID [config.FILE_ID_SIZE]byte
+const FileIDSize int = 16
+
+type FileID [FileIDSize]byte
 
 func (f *FileID) FromHex(hx string) error {
 
@@ -19,7 +20,7 @@ func (f *FileID) FromHex(hx string) error {
 		return err
 	}
 
-	if n != config.FILE_ID_SIZE {
+	if n != FileIDSize {
 		return ErrInvalidFileID
 	}
 

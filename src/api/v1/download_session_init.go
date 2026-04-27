@@ -7,13 +7,13 @@ import (
 	"net/http"
 )
 
-// download_begin creates a chunked download session for the given file.
+// download_session_init creates a chunked download session for the given file.
 // The download counts as one download regardless of how many chunks are fetched.
-func (a *APIV1) download_begin(w http.ResponseWriter, r *http.Request) {
+func (a *APIV1) download_session_init(w http.ResponseWriter, r *http.Request) {
 
-	key := getFileID(r)
+	var fileID storage.FileID
 
-	if key == nil {
+	if !getFileID(r, &fileID) {
 		api.NotFound(w)
 		return
 	}
@@ -24,7 +24,7 @@ func (a *APIV1) download_begin(w http.ResponseWriter, r *http.Request) {
 		password = ""
 	}
 
-	sessionID, meta, err := a.fileStore.BeginChunkedDownload(*key, password)
+	sessionID, meta, err := a.fileStore.BeginChunkedDownload(fileID, password)
 
 	if err != nil {
 		switch {
@@ -42,12 +42,12 @@ func (a *APIV1) download_begin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.WriteJSON(w, struct {
-		DownloadID string `json:"download_id"`
-		FileSize   int64  `json:"file_size"`
-		Filename   string `json:"filename"`
+		SessionID string `json:"session_id"`
+		FileSize  int64  `json:"file_size"`
+		Filename  string `json:"filename"`
 	}{
-		DownloadID: sessionID.Hex(),
-		FileSize:   meta.Size,
-		Filename:   meta.Name,
+		SessionID: sessionID.Hex(),
+		FileSize:  meta.Size,
+		Filename:  meta.Name,
 	})
 }

@@ -30,8 +30,6 @@ const MAX_USER_PASSWORD_LENGTH int = 32
 const AES_KEY_SIZE crypto.AESKeySize = crypto.AES256
 const MAX_PASSWORD_LENGTH int = 72 // bcrypt max allowed
 
-const FILE_ID_SIZE int = 16
-
 const FILENAME_PREFIX string = "ki_"
 
 const SHOW_DOWNLOAD_EXPIRE_TIME bool = true
@@ -51,7 +49,8 @@ var (
 
 	// This is the max number of bytes per request.
 	// If the file is larger than this, we will chunk the file.
-	maxChunkSize   int64         = 50 * MB
+	// maxChunkSize   int64         = 50 * MB
+	maxChunkSize   int64         = 2 * MB
 	sessionTimeout time.Duration = 30 * time.Minute
 )
 

@@ -1,12 +1,13 @@
 package storage
 
 import (
+	"errors"
 	"io"
 	"sync"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
+
+var ErrInvalidSeek = errors.New("invalid seek start position")
 
 // DownloadSession holds an open decryption reader for a chunked download.
 // The AES-CTR stream state is maintained naturally as the reader is consumed
@@ -21,10 +22,10 @@ type DownloadSession struct {
 	TotalBytes int64
 
 	// Bytes delivered to the client so far.
-	BytesRead int64
+	BytesWritten int64
 
-	// FileID of the file being downloaded, needed to call SubDownloader on cleanup.
 	FileID FileID
+	File   KiMetadata
 
 	LastActivity time.Time
 
@@ -36,28 +37,52 @@ type DownloadSession struct {
 	pending []byte
 }
 
-func (d *DownloadSession) Read(p []byte) (int, error) {
+// SeekUntil reads the session download until the given position.
+// The position must be ahead or equal to the current position, otherwise ErrInvalidSeek is returned.
+func (session *DownloadSession) SeekUntil(start int64) (int64, error) {
 
-	n := int(0)
+	if start < 0 || start < session.BytesWritten {
+		return 0, ErrInvalidSeek
+	}
 
+	if session.BytesWritten == start {
+		return 0, nil
+	}
+
+	return session.WriteToN(io.Discard, start-session.BytesWritten)
+}
+
+// WriteToN writes size bytes into the given Writer, stopping when there is an error or it has written size bytes.
+// Returns 0 <= n <= size and any error encountered.
+func (session *DownloadSession) WriteToN(w io.Writer, size int64) (int64, error) {
+
+	amnt := int64(0)
 	for {
+		if pLen := len(session.pending); pLen > 0 {
 
-		for len(d.pending) > 0 {
-
-			m := copy(p, d.pending)
-			n += m
-
-			p = p[m:]
-			d.pending = d.pending[m:]
-
-			if len(p) == 0 {
-				return n, nil
+			if size <= 0 {
+				return amnt, nil
 			}
+
+			end := int(min(size, int64(pLen)))
+			m, err := w.Write(session.pending[0:end])
+
+			amnt += int64(m)
+			size -= int64(m)
+
+			session.BytesWritten += int64(m)
+			session.LastActivity = time.Now()
+			session.pending = session.pending[m:]
+
+			if err != nil {
+				return amnt, err
+			}
+
+			continue
 		}
 
-		m, err := d.Stream.Read(d.buf)
-
-		d.pending = d.buf[0:m]
+		m, err := session.Stream.Read(session.buf)
+		session.pending = session.buf[0:m]
 
 		if m > 0 {
 			continue
@@ -67,59 +92,6 @@ func (d *DownloadSession) Read(p []byte) (int, error) {
 			err = io.EOF
 		}
 
-		return n, err
+		return amnt, err
 	}
-}
-
-// DownloadSessionStore is an in-memory store for active chunked download sessions.
-type DownloadSessionStore struct {
-	mu       sync.RWMutex
-	sessions map[FileID]*DownloadSession
-	timeout  time.Duration
-}
-
-func newDownloadSessionStore(timeout time.Duration) *DownloadSessionStore {
-	return &DownloadSessionStore{
-		sessions: make(map[FileID]*DownloadSession),
-		timeout:  timeout,
-	}
-}
-
-func (s *DownloadSessionStore) add(id FileID, session *DownloadSession) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.sessions[id] = session
-}
-
-func (s *DownloadSessionStore) get(id FileID) (*DownloadSession, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	session, ok := s.sessions[id]
-	return session, ok
-}
-
-func (s *DownloadSessionStore) remove(id FileID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.sessions, id)
-}
-
-// removeExpired removes timed-out sessions from the store and returns them.
-// The caller is responsible for closing each session's Stream and calling SubDownloader.
-func (s *DownloadSessionStore) removeExpired() []*DownloadSession {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := time.Now()
-	var expired []*DownloadSession
-
-	for id, session := range s.sessions {
-		if now.Sub(session.LastActivity) > s.timeout {
-			delete(s.sessions, id)
-			expired = append(expired, session)
-			log.Info().Str("id", id.Hex()).Msg("swept expired download session")
-		}
-	}
-
-	return expired
 }

@@ -19,30 +19,30 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// BeginChunkedUpload creates an upload session, sets up encryption and hashing pipelines,
+// CreateUploadSession creates an upload session, sets up encryption and hashing pipelines,
 // and returns a session ID the client uses for subsequent chunk and complete requests.
-func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username string) (FileID, error) {
+func (f *StorageHandler) CreateUploadSession(fup FileUpload, username string) (SessionToken, error) {
 
-	if err := upload.Valid(); err != nil {
-		return FileID{}, err
+	if err := fup.Valid(); err != nil {
+		return SessionToken{}, err
 	}
 
 	var err error
 	var passHash []byte
 
-	if upload.Password != "" {
+	if fup.Password != "" {
 
-		passHash, err = bcrypt.GenerateFromPassword([]byte(upload.Password), f.bcryptCost)
+		passHash, err = bcrypt.GenerateFromPassword([]byte(fup.Password), f.bcryptCost)
 
 		if err != nil {
-			return FileID{}, err
+			return SessionToken{}, err
 		}
 	}
 
 	tmpFile, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
 
 	if err != nil {
-		return FileID{}, err
+		return SessionToken{}, err
 	}
 
 	key := make([]byte, f.keySize)
@@ -50,8 +50,8 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 
 	var cipherWriter io.Writer
 
-	if upload.Password != "" {
-		cipherWriter, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, upload.Password, tmpFile)
+	if fup.Password != "" {
+		cipherWriter, err = crypto.GetStreamEncryptionWriterEx(f.keySize, key, fup.Password, tmpFile)
 	} else {
 		cipherWriter, err = crypto.GetStreamEncryptionWriter(key, tmpFile)
 	}
@@ -59,7 +59,7 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpFile.Name())
-		return FileID{}, err
+		return SessionToken{}, err
 	}
 
 	now := time.Now()
@@ -74,19 +74,19 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 		MD5H:         md5.New(),
 
 		AESKey:           key,
-		Filename:         strings.TrimSpace(upload.Filename),
-		ExpiresIn:        upload.ExpiresIn,
-		AllowedDownloads: upload.AllowedDownloads,
-		MemoryOnly:       upload.MemoryOnly,
-		HasPassword:      upload.Password != "",
+		Filename:         strings.TrimSpace(fup.Filename),
+		ExpiresIn:        fup.ExpiresIn,
+		AllowedDownloads: fup.AllowedDownloads,
+		MemoryOnly:       fup.MemoryOnly,
+		HasPassword:      fup.Password != "",
 		PasswordHash:     passHash,
 		CreatedAt:        now,
 		LastActivity:     now,
 		Username:         username,
 	}
 
-	var sessionID FileID
-	rand.Read(sessionID[:])
+	var sessionID SessionToken
+	sessionID.New()
 
 	f.uploadSessionStore.add(sessionID, session)
 
@@ -95,11 +95,11 @@ func (f *FileUploadHandler) BeginChunkedUpload(upload FileUpload, username strin
 	return sessionID, nil
 }
 
-// AppendChunk reads up to limit bytes from r and appends them to the session's encrypted
+// UploadSessionData reads up to limit bytes from r and appends them to the session's encrypted
 // temp file while updating all running hash states. Chunks must be sent sequentially.
-func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.Reader, limit int64, update func(int)) (int64, error) {
+func (f *StorageHandler) UploadSessionData(sessionID SessionToken, username string, r io.Reader, limit int64, update func(int)) (int64, error) {
 
-	session, ok := f.uploadSessionStore.get(uploadId)
+	session, ok := f.uploadSessionStore.get(sessionID)
 
 	if !ok {
 		return 0, ErrSessionNotFound
@@ -141,9 +141,9 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 
 				if session.TotalBytes+bytesWritten > config.MaxUploadSize() {
 
-					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
+					log.Info().Hex("id", sessionID[:]).Str("username", username).Msg("max upload size exceeded")
 
-					f.uploadSessionStore.remove(uploadId)
+					f.uploadSessionStore.remove(sessionID)
 					session.Cleanup()
 
 					return ErrMaxUploadSizeExceeded
@@ -158,9 +158,9 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 
 				if _, ok := err.(*http.MaxBytesError); ok {
 
-					log.Info().Hex("id", uploadId[:]).Str("username", username).Msg("max upload size exceeded")
+					log.Info().Hex("id", sessionID[:]).Str("username", username).Msg("max upload size exceeded")
 
-					f.uploadSessionStore.remove(uploadId)
+					f.uploadSessionStore.remove(sessionID)
 					session.Cleanup()
 
 					return ErrMaxUploadSizeExceeded
@@ -183,9 +183,9 @@ func (f *FileUploadHandler) AppendChunk(uploadId FileID, username string, r io.R
 	return bytesWritten, err
 }
 
-// CompleteChunkedUpload finalises the upload: closes the temp file, commits metadata to the
+// CompleteUploadSession finalises the upload: closes the temp file, commits metadata to the
 // file store, and returns the new FileID. The session is removed if the file is closed, regardless of if the metadata is put into the store. If adding the metadata into the filestore fails, the file is deleted.
-func (f *FileUploadHandler) CompleteChunkedUpload(uploadId FileID, username string) (*FileID, error) {
+func (f *StorageHandler) CompleteUploadSession(uploadId SessionToken, username string) (*FileID, error) {
 
 	session, ok := f.uploadSessionStore.get(uploadId)
 
@@ -241,8 +241,8 @@ func (f *FileUploadHandler) CompleteChunkedUpload(uploadId FileID, username stri
 	return &fileId, nil
 }
 
-// AbortChunkedUpload cancels an in-progress upload, deleting the temp file.
-func (f *FileUploadHandler) AbortChunkedUpload(uploadId FileID, username string) error {
+// AbortUploadSession cancels an in-progress upload, deleting the temp file.
+func (f *StorageHandler) AbortUploadSession(uploadId SessionToken, username string) error {
 
 	session, ok := f.uploadSessionStore.get(uploadId)
 

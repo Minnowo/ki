@@ -1,35 +1,13 @@
 package v1
 
 import (
-	"encoding/hex"
 	"ki/src/api"
-	"ki/src/config"
 	"ki/src/handlers/storage"
 	"ki/src/ui/pages"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
-
-func getFileID(r *http.Request) *storage.FileID {
-
-	vars := mux.Vars(r)
-	hexStr, ok := vars["fileIdHex"]
-	if !ok {
-		return nil
-	}
-
-	id, err := hex.DecodeString(hexStr)
-
-	if err != nil || len(id) != config.FILE_ID_SIZE {
-		return nil
-	}
-
-	fileID := storage.FileID(id)
-
-	return &fileID
-}
 
 func (a *APIV1) ui_download2(w http.ResponseWriter, r *http.Request) {
 	view := pages.NewBaseViewFromReq(r)
@@ -38,14 +16,14 @@ func (a *APIV1) ui_download2(w http.ResponseWriter, r *http.Request) {
 
 func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 
-	key := getFileID(r)
+	var key storage.FileID
 
-	if key == nil {
+	if !getFileID(r, &key) {
 		api.NotFound(w)
 		return
 	}
 
-	file := a.fileStore.GetFile(*key)
+	file := a.fileStore.FileMetadata(key)
 
 	if file == nil {
 		api.NotFound(w)
@@ -55,15 +33,15 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 	pages.PageDownloadFile(&pages.PageDownloadFileView{
 		BaseView: pages.NewBaseViewFromReq(r),
 		File:     file,
-		FileID:   *key,
+		FileID:   key,
 	}).Render(r.Context(), w)
 }
 
 func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 
-	key := getFileID(r)
+	var key storage.FileID
 
-	if key == nil {
+	if !getFileID(r, &key) {
 		api.NotFound(w)
 		return
 	}
@@ -74,7 +52,7 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 		password = ""
 	}
 
-	err := a.fileStore.ReadFile(w, *key, password)
+	err := a.fileStore.ReadFile(w, key, password)
 
 	switch {
 	case err == storage.ErrNeedsAuth:

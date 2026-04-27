@@ -1,5 +1,7 @@
 package pages
 
+import "ki/src/handlers/storage"
+
 import(
     "ki/src/pkg/bytes"
     "ki/src/config"
@@ -75,8 +77,7 @@ script chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPass
 
         let downloadId, totalSize;
         try {
-            const resp = await fetch('/api/download/' + fileIdHex + '/begin', {
-                method: 'POST',
+            const resp = await fetch(`/api/dl/s/init/${fileIdHex}`, {
                 headers,
             });
 
@@ -91,7 +92,7 @@ script chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPass
             }
 
             const data = await resp.json();
-            downloadId = data.download_id;
+            downloadId = data.session_id;
             totalSize  = data.file_size;
         } catch (e) {
             alert('Network error: ' + e.message);
@@ -114,7 +115,7 @@ script chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPass
             aborted = true;
             cancel.disabled = true;
             statusEl.textContent = 'Cancelling...';
-            await fetch('/api/download/' + downloadId + '/abort', { method: 'POST' }).catch(() => {});
+            await fetch(`/api/dl/s/done/${fileIdHex}?sid=${downloadId}`).catch(() => {});
             if (writable) await writable.abort().catch(() => {});
             statusEl.textContent = 'Cancelled.';
             btn.disabled = false;
@@ -131,7 +132,7 @@ script chunkedDownloadScript(fileIdHex, filename string, fileSize int64, hasPass
 
             let resp;
             try {
-                resp = await fetch('/api/download/' + downloadId + '/chunk');
+                resp = await fetch(`/api/dl/s/data/${fileIdHex}?sid=${downloadId}`);
                 retries = 0;
             } catch (e) {
                 
@@ -215,7 +216,7 @@ templ checksumInformation(view *PageDownloadFileView ){
             <td class="px-2"> SHA512 </td>
             <td class="w-full">
                 <pre>
-                <textarea class="w-full whitespace-nowrap" rows="1">
+                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
                     { sha512 }
                 </textarea>
                 </pre>
@@ -226,7 +227,7 @@ templ checksumInformation(view *PageDownloadFileView ){
             <td class="px-2"> SHA256 </td>
             <td class="w-full">
                 <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1">
+                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
                     { sha256 }
                 </textarea>
                 </pre>
@@ -237,7 +238,7 @@ templ checksumInformation(view *PageDownloadFileView ){
             <td class="px-2"> SHA1 </td>
             <td class="w-full">
                 <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1">
+                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
                     { sha1 }
                 </textarea>
                 </pre>
@@ -248,7 +249,7 @@ templ checksumInformation(view *PageDownloadFileView ){
             <td class="px-2"> MD5 </td>
             <td class="w-full">
                 <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1">
+                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
                     { md5 }
                 </textarea>
                 </pre>
@@ -280,17 +281,13 @@ templ otherDownloadOptions(view *PageDownloadFileView, url string ){
     <h1>Other downloads</h1>
     <br/>
         
-    <pre class="my-2" title="Curl command to download the file">
-        <textarea class="w-full whitespace-nowrap" rows="1">
-            { curlCmd }
-        </textarea>
-    </pre>
+    <textarea class="w-full whitespace-nowrap my-2 font-mono" title="Curl command to download the file" rows="1" spellcheck="false">
+        { curlCmd }
+    </textarea>
 
-    <pre class="my-2" title="wget command to download the file">
-        <textarea class="w-full whitespace-nowrap" rows="1">
-            { wgetCmd }
-        </textarea>
-    </pre>
+    <textarea class="w-full whitespace-nowrap my-2 font-mono" title="wget command to download the file" rows="1" spellcheck="false">
+        { wgetCmd }
+    </textarea>
 }
 
 
@@ -310,7 +307,7 @@ templ PageDownload(view *BaseView) {
             To download a file, navigate to 
             <span class="font-mono"> { "/download/{fileId}" } </span>
             where <span class="font-mono"> { "{fileId}" } </span>
-            is the { strconv.Itoa(config.FILE_ID_SIZE) } byte file identifier of the file you want to download.
+            is the { strconv.Itoa(storage.FileIDSize) } byte file identifier of the file you want to download.
         </p>
 
     }
@@ -322,7 +319,7 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
         {{
             idHex := view.FileID.Hex()
-            ddl   := "/api/download/" + idHex
+            ddl   := "/api/dl/full/" + idHex
             dlFilename := view.File.Name
             if dlFilename == "" {
                 dlFilename = idHex

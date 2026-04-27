@@ -16,10 +16,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// file_upload_begin starts a chunked upload session. The client sends all file metadata
-// (expiry, downloads, password, filename) here and receives an upload_id to use for
+// file_upload_session_init starts a chunked upload session. The client sends all file metadata
+// (expiry, downloads, password, filename) here and receives a SessionID to use for
 // subsequent chunk and complete requests.
-func (a *APIV1) file_upload_begin(w http.ResponseWriter, r *http.Request) {
+func (a *APIV1) file_upload_session_init(w http.ResponseWriter, r *http.Request) {
 
 	username, ok := auth.GetUser(r)
 
@@ -104,7 +104,7 @@ func (a *APIV1) file_upload_begin(w http.ResponseWriter, r *http.Request) {
 			time.Minute*time.Duration(minutes)),
 	}
 
-	uploadId, err := a.fileStore.BeginChunkedUpload(upload, username)
+	uploadId, err := a.fileStore.CreateUploadSession(upload, username)
 
 	if err != nil {
 		if errors.Is(err, storage.ErrInvalidUpload) {

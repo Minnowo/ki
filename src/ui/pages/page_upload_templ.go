@@ -46,12 +46,12 @@ func e2eOptions(view *PageUploadView) templ.Component {
 
 func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_formUploadScript_a949`,
-		Function: `function __templ_formUploadScript_a949(maxUploadSize, chunkSize){const CHUNK_THRESHOLD = chunkSize;
+		Name: `__templ_formUploadScript_87f5`,
+		Function: `function __templ_formUploadScript_87f5(maxUploadSize, chunkSize){const CHUNK_THRESHOLD = chunkSize;
 
     document.addEventListener('DOMContentLoaded', () => {
 
-        const form = document.querySelector('form[action="/api/upload"]');
+        const form = document.querySelector('form[action="/api/ul/full"]');
 
         if (!form) {
             return;
@@ -148,7 +148,7 @@ func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
             aborted = true;
             if (currentXHR) currentXHR.abort();
             if (uploadId) {
-                fetch('/api/upload/' + uploadId + '/abort', { method: 'POST' }).catch(() => {});
+                fetch('/api/ul/s/abort?sid=' + uploadId, { method: 'POST' }).catch(() => {});
             }
             cont.remove();
         };
@@ -168,7 +168,7 @@ func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
 
         let beginResp;
         try {
-            beginResp = await fetch('/api/upload/begin', { method: 'POST', body: beginData });
+            beginResp = await fetch('/api/ul/s/init', { method: 'POST', body: beginData });
         } catch (e) {
             cont.remove(); alert('Network error during upload.'); return;
         }
@@ -195,7 +195,7 @@ func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
                 const xhr = new XMLHttpRequest();
                 currentXHR = xhr;
 
-                xhr.open('POST', '/api/upload/' + uploadId + '/chunk', true);
+                xhr.open('POST', '/api/ul/s/data?sid=' + uploadId, true);
                 xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
                 xhr.upload.onprogress = (e) => {
@@ -228,7 +228,7 @@ func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
 
         let completeResp;
         try {
-            completeResp = await fetch('/api/upload/' + uploadId + '/complete', {
+            completeResp = await fetch('/api/ul/s/done?sid=' + uploadId, {
                 method: 'POST',
                 headers: { 'X-Requested-With': 'js-form' },
             });
@@ -245,8 +245,8 @@ func formUploadScript(maxUploadSize, chunkSize int64) templ.ComponentScript {
         alert('Upload failed: ' + completeResp.status);
     }
 }`,
-		Call:       templ.SafeScript(`__templ_formUploadScript_a949`, maxUploadSize, chunkSize),
-		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_a949`, maxUploadSize, chunkSize),
+		Call:       templ.SafeScript(`__templ_formUploadScript_87f5`, maxUploadSize, chunkSize),
+		CallInline: templ.SafeScriptInline(`__templ_formUploadScript_87f5`, maxUploadSize, chunkSize),
 	}
 }
 
@@ -303,7 +303,7 @@ func PageUpload(view *PageUploadView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</h3><br><form enctype=\"multipart/form-data\" action=\"/api/upload\" method=\"POST\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</h3><br><form enctype=\"multipart/form-data\" action=\"/api/ul/full\" method=\"POST\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

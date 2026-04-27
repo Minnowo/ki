@@ -11,6 +11,7 @@ import (
 	"ki/src/handlers/user"
 	"ki/src/pkg/csrf"
 	"ki/src/pkg/proxy"
+	"net/http"
 	"path"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 
 type APIV1 struct {
 	router       *mux.Router
-	fileStore    storage.FileUploadHandler
+	fileStore    storage.StorageHandler
 	rateLimiter  *ratelimit.RateLimiter
 	csrfHandler  *csrf.Handler
 	UserRegistry *user.UserRegistry
@@ -75,18 +76,45 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	apiP := api.Methods("POST").Subrouter()
 	apiP.HandleFunc("/api/login", a.api_login)
-	apiP.HandleFunc("/api/download/{fileIdHex}/begin", a.download_begin)
-	apiP.HandleFunc("/api/download/{downloadId}/abort", a.download_abort)
 
 	apiAuth := apiP.NewRoute().Subrouter()
 	apiAuth.Use(auth.RequireAuth())
-	apiAuth.HandleFunc("/api/upload", a.file_upload)
-	apiAuth.HandleFunc("/api/upload/begin", a.file_upload_begin)
-	apiAuth.HandleFunc("/api/upload/{uploadId}/chunk", a.file_upload_chunk)
-	apiAuth.HandleFunc("/api/upload/{uploadId}/complete", a.file_upload_complete)
-	apiAuth.HandleFunc("/api/upload/{uploadId}/abort", a.file_upload_abort)
+	apiAuth.HandleFunc("/api/ul/full", a.file_upload)
+	apiAuth.HandleFunc("/api/ul/s/init", a.file_upload_session_init)
+	apiAuth.HandleFunc("/api/ul/s/data", a.file_upload_session_data)
+	apiAuth.HandleFunc("/api/ul/s/done", a.file_upload_session_done)
+	apiAuth.HandleFunc("/api/ul/s/abort", a.file_upload_session_abort)
 
-	apiG := api.Methods("GET").Subrouter()
-	apiG.HandleFunc("/api/download/{fileIdHex}", a.file_download)
-	apiG.HandleFunc("/api/download/{downloadId}/chunk", a.download_chunk)
+	apiG := api.Methods("GET", "HEAD").Subrouter()
+	apiG.HandleFunc("/api/dl/full/{fileIdHex}", a.file_download)
+	apiG.HandleFunc("/api/dl/s/init/{fileIdHex}", a.download_session_init)
+	apiG.HandleFunc("/api/dl/s/data/{fileIdHex}", a.download_session_data)
+	apiG.HandleFunc("/api/dl/s/done/{fileIdHex}", a.download_session_done)
+}
+
+func getFileID(r *http.Request, fileId *storage.FileID) bool {
+
+	vars := mux.Vars(r)
+	hexStr, ok := vars["fileIdHex"]
+
+	if !ok {
+		return false
+	}
+
+	return fileId.FromHex(hexStr) == nil
+}
+
+func getSessionID(r *http.Request, sessionId *storage.SessionToken) bool {
+
+	cookie, err := r.Cookie("sid")
+
+	if err == nil {
+		if sessionId.FromHex(cookie.Value) != nil {
+			return true
+		}
+	}
+
+	sid := r.URL.Query().Get("sid")
+
+	return sessionId.FromHex(sid) == nil
 }

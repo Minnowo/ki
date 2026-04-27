@@ -16,6 +16,7 @@ func Register(r *mux.Router) {
 
 	var assetsStatic, _ = fs.Sub(fsStatic, "static")
 	var static = http.StripPrefix("/static/", http.FileServer(http.FS(assetsStatic)))
-	r.PathPrefix("/static/i/").Handler(static) // images
-	r.PathPrefix("/static/c/").Handler(static) // css
+	r.PathPrefix("/static/i/").Handler(static)  // images
+	r.PathPrefix("/static/c/").Handler(static)  // css
+	r.PathPrefix("/static/js/").Handler(static) // javascript
 }
