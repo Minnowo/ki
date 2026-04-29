@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES2017",
+        "lib": ["ES2017", "WebWorker"],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "moduleResolution": "bundler",
+        "module": "ESNext"
+    },
+    "include": ["src"]
+}

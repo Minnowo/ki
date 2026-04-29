@@ -1,0 +1,13 @@
+{
+    "name": "ki-serviceworker",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "build": "esbuild src/sw.ts --bundle --minify --outfile=../../assets/static/js/sw.js --format=iife",
+        "watch": "esbuild src/sw.ts --bundle --outfile=../../assets/static/js/sw.js --format=iife --watch"
+    },
+    "devDependencies": {
+        "esbuild": "^0.28.0",
+        "typescript": "^6.0.0"
+    }
+}
