@@ -175,7 +175,7 @@ export const InitUpload = (mountId: string, formId: string, maxUploadSize: numbe
             if (file.size > maxUploadSize) {
                 setStatus('File size is too large');
             } else if (file.size > chunkSize) {
-                doChunkedUpload(form, fileField, file);
+                doChunkedUpload(form, fileField, file, setStatus);
             } else {
                 doSingleUpload(form);
             }

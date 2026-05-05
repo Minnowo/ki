@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"ki/src/api/middleware"
 	v1 "ki/src/api/v1"
-	"ki/src/assets"
 	"ki/src/config"
 	"ki/src/handlers/user"
+	"ki/src/ui"
 	"net/http"
 	"os"
 	"time"
@@ -60,7 +60,7 @@ func CmdServerMain(ctx context.Context, c *cli.Command) error {
 	r := mux.NewRouter()
 	r.Use(middleware.Recoverer)
 
-	assets.Register(r)
+	ui.RegisterStatic(r)
 
 	srv := &http.Server{
 		Handler: r,

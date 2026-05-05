@@ -9,6 +9,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// ui_download3 redirects to the download page.
+// This route is never supposed to be called by the UI, since the service worker should intercept it and start the download.
+// If the service worker doesn't, then we get here and can redirect to the download page.
+func (a *APIV1) ui_download3(w http.ResponseWriter, r *http.Request) {
+
+	var fileID storage.FileID
+
+	if !getFileID(r, &fileID) {
+		api.Done(w, http.StatusBadRequest, "invalid FileID")
+		return
+	}
+
+	url, err := a.router.Get("download").URL("fileIdHex", fileID.Hex())
+
+	if err != nil {
+		log.Panic().Str("fileIdHex", fileID.Hex()).Msg("could not build route url")
+	}
+
+	http.Redirect(w, r, url.String(), http.StatusSeeOther)
+}
+
 func (a *APIV1) ui_download2(w http.ResponseWriter, r *http.Request) {
 	view := pages.NewBaseViewFromReq(r)
 	pages.PageDownload(&view).Render(r.Context(), w)

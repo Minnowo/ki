@@ -2,7 +2,7 @@ module.exports = {
 
     darkMode: "class",
 
-    content: ["./src/ui/**/*.templ"],
+    content: ["./src/ui/**/*.templ", "./src/ui/**/*.ts"],
 
     theme: {
         extend: {

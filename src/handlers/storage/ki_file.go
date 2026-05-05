@@ -3,6 +3,7 @@ package storage
 import (
 	"crypto/rand"
 	"io"
+	"ki/src/config"
 	"ki/src/handlers/crypto"
 	"ki/src/pkg/bytes"
 	"os"
@@ -56,6 +57,12 @@ func (f *KiMetadata) AddDownloader() {
 }
 func (f *KiMetadata) SubDownloader() {
 	f.ActiveDownloads--
+}
+
+// IsLarge returns true if the file size is larger than the proxy request size.
+// This means that the file cannot be downloaded in a single request, and must be chunked.
+func (f *KiMetadata) IsLarge() bool {
+	return f.Size > config.MaxChunkSize()
 }
 
 type KiFile struct {

@@ -8,13 +8,13 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "ki/src/handlers/storage"
-
 import (
 	"encoding/hex"
 	"fmt"
 	"ki/src/config"
+	"ki/src/handlers/storage"
 	"ki/src/pkg/bytes"
+	"ki/src/ui"
 	"strconv"
 	"time"
 )
@@ -189,35 +189,38 @@ func otherDownloadOptions(view *PageDownloadFileView, url string) templ.Componen
 			curlCmd = fmt.Sprintf("curl %s -O", dl)
 			wgetCmd = fmt.Sprintf("wget %s", dl)
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<br><h1>Other downloads</h1><br><textarea class=\"w-full whitespace-nowrap my-2 font-mono\" title=\"Curl command to download the file\" rows=\"1\" spellcheck=\"false\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(curlCmd)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 99, Col: 17}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</textarea> <textarea class=\"w-full whitespace-nowrap my-2 font-mono\" title=\"wget command to download the file\" rows=\"1\" spellcheck=\"false\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(wgetCmd)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 103, Col: 17}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</textarea>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
+		if view.File.IsLarge() {
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<br><h1>Other downloads</h1><br><textarea class=\"w-full whitespace-nowrap my-2 font-mono\" title=\"Curl command to download the file\" rows=\"1\" spellcheck=\"false\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(curlCmd)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 104, Col: 21}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</textarea> <textarea class=\"w-full whitespace-nowrap my-2 font-mono\" title=\"wget command to download the file\" rows=\"1\" spellcheck=\"false\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(wgetCmd)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 108, Col: 21}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</textarea>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
 		return nil
 	})
@@ -263,7 +266,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("/download/{fileId}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 122, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 128, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -276,7 +279,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs("{fileId}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 123, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 129, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -289,7 +292,7 @@ func PageDownload(view *BaseView) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(storage.FileIDSize))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 124, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 130, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -343,48 +346,40 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			idHex := view.FileID.Hex()
-			ddl := "/api/dl/full/" + idHex
-			dlFilename := view.File.Name
-			if dlFilename == "" {
-				dlFilename = idHex
+
+			var ddl string
+
+			if view.File.IsLarge() {
+				ddl = ui.ServiceWorkerPrefix + idHex + "?pw=1"
+			} else {
+				ddl = "/api/dl/full/" + idHex
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<br><div id=\"mount\"></div><h1 title=\"Direct download\"><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<br><h3 class=\"whitespace-pre-wrap break-words\" title=\"Original filename\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var20 templ.SafeURL
-			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(ddl))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 148, Col: 40}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\" target=\"_blank\" rel=\"noopener noreferrer\">Download</a></h1><h3 title=\"File identifier\">File ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var21 string
-			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(idHex)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 154, Col: 28}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if view.File.UserSetPassword {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span title=\"This file requires a password to download. Provide basic auth using any username with the password to the file. (username will be ignored)\">(requires password)</span>")
+			if view.File.Name == "" {
+				var templ_7745c5c3_Var20 string
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(idHex)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 157, Col: 23}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				var templ_7745c5c3_Var21 string
+				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Name)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 159, Col: 32}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</h3><pre class=\"The file size\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</h3><pre class=\"The file size\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -397,88 +392,101 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</pre><br><pre class=\"whitespace-pre-wrap break-words\" title=\"Original filename\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</pre><br><table class=\"table-padded\"><tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if view.File.Name == "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "no file name")
+			if config.SHOW_DOWNLOADS_REMAINING {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<tr title=\"The number of downloads until expirey\"><td class=\"px-2 text-right\">Remaining </td><td class=\"px-2\"><pre>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			} else {
 				var templ_7745c5c3_Var23 string
-				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Name)
+				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(view.File.AllowedDownloads - view.File.Downloads))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 174, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 178, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</pre><br><table class=\"table-padded\"><tbody>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if config.SHOW_DOWNLOADS_REMAINING {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<tr title=\"The number of downloads until expirey\"><td class=\"px-2 text-right\">Remaining </td><td class=\"px-2\"><pre>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var24 string
-				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(view.File.AllowedDownloads - view.File.Downloads))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 189, Col: 91}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</pre></td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</pre></td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<tr title=\"The expires in this much time\"><td class=\"px-2 text-right\">Expires in </td><td class=\"px-2\"><pre>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<tr title=\"Remaining time until expirey\"><td class=\"px-2 text-right\">Expires in </td><td class=\"px-2\"><pre>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var25 string
-				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Expires.Sub(time.Now()).String())
+				var templ_7745c5c3_Var24 string
+				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(view.File.Expires.Sub(time.Now())))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 201, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 190, Col: 79}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</pre></td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</pre></td></tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			if config.SHOW_DOWNLOAD_EXPIRE_TIME {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<tr title=\"The time of expirey (server side)\"><td class=\"px-2 text-right\">Expires </td><td class=\"px-2\"><pre>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<tr title=\"The time of expirey (server side)\"><td class=\"px-2 text-right\">Expires </td><td class=\"px-2\"><pre>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var26 string
-				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Expires.Format(config.EXPIREY_TIME_FORMAT))
+				var templ_7745c5c3_Var25 string
+				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(view.File.Expires.Format(config.EXPIREY_TIME_FORMAT))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 213, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 202, Col: 82}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</pre></td></tr>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</tbody></table><br><h1>Download Options </h1><hr>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if view.File.IsLarge() {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<p>The size of this file exceeds the proxy request limit. Downloading it requires using multiple requests, and may be more complicated.</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, " <br><div id=\"mount\" class=\"flex flex-col gap-2 w-64\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if !view.File.IsLarge() {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, " <div class=\"flex flex-col\"><h2 title=\"Direct download\"><a href=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var26 templ.SafeURL
+				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(ddl))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 229, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</pre></td></tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\" target=\"_blank\" rel=\"noopener noreferrer\">Direct Download</a></h2><p>Use username: <span class=\"font-mono\">anon</span></p></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</tbody></table><br><h1><button id=\"chunked-dl-btn\">Download (chunked)</button></h1><div id=\"chunked-dl-status\" style=\"font-family:monospace;white-space:pre\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -500,7 +508,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			}
 			templ_7745c5c3_Var27, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(idHex)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 236, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 249, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -512,7 +520,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			}
 			templ_7745c5c3_Var28, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(view.File.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 237, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 250, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 			if templ_7745c5c3_Err != nil {
@@ -524,7 +532,7 @@ func PageDownloadFile(view *PageDownloadFileView) templ.Component {
 			}
 			templ_7745c5c3_Var29, templ_7745c5c3_Err := templruntime.ScriptContentOutsideStringLiteral(view.File.UserSetPassword)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 238, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `src/ui/pages/page_download.templ`, Line: 251, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 			if templ_7745c5c3_Err != nil {

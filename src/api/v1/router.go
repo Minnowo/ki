@@ -70,6 +70,7 @@ func (a *APIV1) Register(r *mux.Router) {
 	ui.HandleFunc("/upload", a.ui_upload)
 	ui.HandleFunc("/download", a.ui_download2)
 	ui.HandleFunc("/download/{fileIdHex}", a.ui_download).Name("download")
+	ui.HandleFunc("/download/sw/{fileIdHex}", a.ui_download3)
 	ui.HandleFunc("/", a.ui_upload)
 
 	api := r.NewRoute().Subrouter()

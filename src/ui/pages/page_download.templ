@@ -1,10 +1,10 @@
 package pages
 
-import "ki/src/handlers/storage"
-
 import(
+    "ki/src/handlers/storage"
     "ki/src/pkg/bytes"
     "ki/src/config"
+    "ki/src/ui"
 	"encoding/hex"
 	"strconv"
 	"time"
@@ -91,17 +91,23 @@ templ otherDownloadOptions(view *PageDownloadFileView, url string ){
         }
     }}
 
-    <br/>
-    <h1>Other downloads</h1>
-    <br/>
-        
-    <textarea class="w-full whitespace-nowrap my-2 font-mono" title="Curl command to download the file" rows="1" spellcheck="false">
-        { curlCmd }
-    </textarea>
+    if view.File.IsLarge() {
 
-    <textarea class="w-full whitespace-nowrap my-2 font-mono" title="wget command to download the file" rows="1" spellcheck="false">
-        { wgetCmd }
-    </textarea>
+        // currently nothing for large downloads
+
+    } else {
+        <br/>
+        <h1>Other downloads</h1>
+        <br/>
+            
+        <textarea class="w-full whitespace-nowrap my-2 font-mono" title="Curl command to download the file" rows="1" spellcheck="false">
+            { curlCmd }
+        </textarea>
+
+        <textarea class="w-full whitespace-nowrap my-2 font-mono" title="wget command to download the file" rows="1" spellcheck="false">
+            { wgetCmd }
+        </textarea>
+    }
 }
 
 
@@ -133,47 +139,30 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
         {{
             idHex := view.FileID.Hex()
-            ddl   := "/api/dl/full/" + idHex
-            dlFilename := view.File.Name
-            if dlFilename == "" {
-                dlFilename = idHex
+
+            var ddl string
+
+            if view.File.IsLarge() {
+                ddl = ui.ServiceWorkerPrefix + idHex + "?pw=1"
+            } else {
+                ddl = "/api/dl/full/" + idHex
             }
         }}
 
         <br/>
 
-        <div id="mount"></div>
+        <h3 class="whitespace-pre-wrap break-words" title="Original filename"> 
 
-        <h1 title="Direct download">
-            <a href={ templ.SafeURL(ddl) } target="_blank" rel="noopener noreferrer">
-                Download
-            </a>
-        </h1>
-        <h3 title="File identifier">
-
-                File { idHex }
-
-                if view.File.UserSetPassword {
-                    <span title="This file requires a password to download. Provide basic auth using any username with the password to the file. (username will be ignored)">
-                    (requires password)
-                    </span>
-                }
+            if view.File.Name == "" {
+                { idHex }
+            } else {
+                { view.File.Name }
+            }
         </h3>
 
         <pre class="The file size">
             { bytes.PrettyByteSize64(view.File.Size) }
         </pre>
-
-        <br/>
-
-        <pre class="whitespace-pre-wrap break-words" title="Original filename"> 
-
-            if view.File.Name == "" {
-                no file name
-            } else {
-                { view.File.Name }
-            }
-        </pre> 
 
         <br/>
 
@@ -194,11 +183,11 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
             if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
 
-                <tr title="The expires in this much time">
+                <tr title="Remaining time until expirey">
                     <td class="px-2 text-right"> Expires in </td>
                     <td class="px-2 ">
                         <pre> 
-                            { view.File.Expires.Sub(time.Now()).String() }
+                            { formatDuration(view.File.Expires.Sub(time.Now())) }
                         </pre>
                     </td>
                 </tr>
@@ -220,10 +209,34 @@ templ PageDownloadFile( view *PageDownloadFileView) {
         </table>
 
         <br/>
-        <h1>
-            <button id="chunked-dl-btn">Download (chunked)</button>
-        </h1>
-        <div id="chunked-dl-status" style="font-family:monospace;white-space:pre"></div>
+
+        <h1> Download Options </h1>
+        <hr />
+        if view.File.IsLarge() {
+            <p>
+            The size of this file exceeds the proxy request limit.
+            Downloading it requires using multiple requests, and may be more complicated.
+            </p>
+        }
+        <br/>
+        <div id="mount" class="flex flex-col gap-2 w-64">
+
+            if !view.File.IsLarge() {
+
+                // direct http download only available for small files
+                <div class="flex flex-col">
+                    <h2 title="Direct download">
+                        <a href={ templ.SafeURL(ddl) } target="_blank" rel="noopener noreferrer">
+                            Direct Download
+                        </a>
+                    </h2>
+                    <p>
+                        Use username: <span class="font-mono">anon</span>
+                    </p>
+                </div>
+            }
+
+        </div>
 
         @otherDownloadOptions(view, ddl)
 
