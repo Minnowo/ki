@@ -129,7 +129,7 @@ func GetStreamDecryptionReader(key []byte, r io.Reader) (io.Reader, error) {
 	// (i.e. by using crypto/hmac) as well as being encrypted in order to
 	// be secure.
 	//
-	// We dot not do any authentication on the cipher stream.
+	// We do not do any authentication on the cipher stream.
 	// The user uploading a file should check the hash before uploading, and compare after downloading.
 
 	stream := cipher.NewCTR(block, iv[:])
