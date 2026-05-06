@@ -24,7 +24,6 @@ type KiMetadata struct {
 	Expires          time.Time `cbor:"expires"`
 	AllowedDownloads int       `cbor:"dlallow"`
 	Downloads        int       `cbor:"dl"`
-	ActiveDownloads  int       `cbor:"dlactive"`
 	Name             string    `cbor:"name"`
 	UserSetPassword  bool      `cbor:"haspassword"`
 	MemoryOnly       bool      `cbor:"memoryonly"`
@@ -40,7 +39,6 @@ func (f *KiMetadata) Clone() *KiMetadata {
 		Expires:          f.Expires,
 		AllowedDownloads: f.AllowedDownloads,
 		Downloads:        f.Downloads,
-		ActiveDownloads:  f.ActiveDownloads,
 		Name:             f.Name,
 		UserSetPassword:  f.UserSetPassword,
 		MemoryOnly:       f.MemoryOnly,
@@ -48,15 +46,11 @@ func (f *KiMetadata) Clone() *KiMetadata {
 }
 
 func (f *KiMetadata) IsExpired() bool {
-	return time.Now().After(f.Expires) || f.Downloads >= f.AllowedDownloads
+	return f.Size <= 0 || time.Now().After(f.Expires) || f.Downloads >= f.AllowedDownloads
 }
 
-func (f *KiMetadata) AddDownloader() {
-	f.ActiveDownloads++
+func (f *KiMetadata) CountDownload() {
 	f.Downloads++
-}
-func (f *KiMetadata) SubDownloader() {
-	f.ActiveDownloads--
 }
 
 // IsLarge returns true if the file size is larger than the proxy request size.
@@ -152,8 +146,7 @@ func (f *KiFile) NewReader(password string) (io.ReadCloser, error) {
 
 }
 
-// Clean expires this file and deletes all information about it.
-// Clean will never delete the file as long as ActiveDownloads > 0.
+// Clean expires this file and deletes most information about it.
 // Returns true if the file was deleted from disk, otherwise false.
 func (f *KiFile) Clean() bool {
 
@@ -161,9 +154,10 @@ func (f *KiFile) Clean() bool {
 		return true
 	}
 
-	log.Debug().Str("name", f.Name).Int("activeDownloads", f.ActiveDownloads).Msg("expiring file")
+	log.Debug().Str("name", f.Name).Msg("expiring file")
 
 	rand.Read(f.Key)
+	rand.Read(f.Md5Hash)
 	rand.Read(f.Sha1Hash)
 	rand.Read(f.Sha256Hash)
 	rand.Read(f.Sha512Hash)
@@ -173,10 +167,6 @@ func (f *KiFile) Clean() bool {
 
 	if f.UserPasswordHash != nil {
 		rand.Read(f.UserPasswordHash)
-	}
-
-	if f.ActiveDownloads > 0 {
-		return false
 	}
 
 	// we want to keep trying to clean until the file is removed
@@ -196,12 +186,12 @@ func (f *KiFile) Clean() bool {
 		log.Info().Str("path", f.FilePath).Msg("file was cleaned")
 		return true
 	}
+
 	return false
 }
 
 func (f *KiFile) ToBinary() (data []byte, err error) {
 	return cbor.Marshal(f)
-
 }
 
 func (f *KiFile) FromBinary(data []byte) error {

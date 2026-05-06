@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/minnowo/log4zero"
+	"github.com/rs/zerolog/log"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -235,7 +236,9 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 			return errBucketNotExist
 		}
 
-		return b.ForEach(func(k []byte, v []byte) error {
+		var keysToDelete [][]byte
+
+		b.ForEach(func(k []byte, v []byte) error {
 
 			var file KiFile
 
@@ -244,24 +247,38 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 				decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, k, v)
 
 				if err != nil {
-					return err
+
+					log.Warn().Hex("key", k).Err(err).Msg("unable to decrypt file")
+
+					return nil
 				}
 
 				v = decrypted
 			}
 
 			if err := file.FromBinary(v); err != nil {
-				return err
+
+				log.Warn().Hex("key", k).Err(err).Msg("unable to convert the file from binary")
+
+				return nil
 			}
 
 			if file.IsExpired() && file.Clean() {
 
-				if err := b.Delete(k); err != nil {
-					return err
-				}
+				// cannot modify the bucket in this function, we must do it after
+				keysToDelete = append(keysToDelete, k)
 			}
 
 			return nil
 		})
+
+		for i := 0; i < len(keysToDelete); i++ {
+
+			key := keysToDelete[i]
+
+			b.Delete(key)
+		}
+
+		return nil
 	})
 }

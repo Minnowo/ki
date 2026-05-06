@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"ki/src/config"
+	"ki/src/handlers/storage"
 	"ki/src/handlers/user"
 	"ki/src/pkg/csrf"
 	"ki/src/ui/formkeys"
@@ -298,7 +299,14 @@ func TestFileUploadComplete(t *testing.T) {
 		router.ServeHTTP(w, r)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Location"), "/download/")
+
+		var resp struct {
+			FileID string `json:"file_id"`
+		}
+		assert.Nil(t, json.Unmarshal(w.Body.Bytes(), &resp), "expected valid json response")
+
+		var fileId storage.FileID
+		assert.Nil(t, fileId.FromHex(resp.FileID), "expected valid file ID")
 	})
 
 	t.Run("unknown upload ID returns 404", func(t *testing.T) {
@@ -410,7 +418,16 @@ func TestChunkedUploadHTTP_FullFlow(t *testing.T) {
 			var location string
 			if jsForm {
 				assert.Equal(http.StatusOK, w3.Code)
-				location = w3.Header().Get("Location")
+				var resp struct {
+					FileID string `json:"file_id"`
+				}
+				assert.Nil(json.Unmarshal(w3.Body.Bytes(), &resp), "expected valid json response")
+
+				var fileId storage.FileID
+				err := fileId.FromHex(resp.FileID)
+				assert.Nil(err, "expected valid file ID")
+
+				location = "/download/" + resp.FileID
 			} else {
 				assert.Equal(http.StatusSeeOther, w3.Code)
 				location = w3.Header().Get("Location")

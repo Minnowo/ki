@@ -2,7 +2,6 @@ package storage
 
 import (
 	"crypto/rand"
-	"io"
 	"ki/src/config"
 	"ki/src/handlers/crypto"
 	"os"
@@ -37,9 +36,9 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 			UserPasswordHash: hash,
 			KeySize:          config.AES_KEY_SIZE,
 			KiMetadata: KiMetadata{
+				Size:             int64(len(garbage)),
 				Downloads:        0,
 				AllowedDownloads: 1,
-				ActiveDownloads:  0,
 				UserSetPassword:  len(password) > 0,
 				Expires:          time.Now().Add(24 * time.Hour),
 			}}
@@ -47,9 +46,8 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 		// has 1 download remaining
 		assert.False(file.IsExpired(), "expired before downloading anything")
 
-		// Simulate a download of the file
-		file.Metadata().AddDownloader()
-		assert.Equal(file.Metadata().ActiveDownloads, 1, "expected 1 active download")
+		// count the download
+		file.Metadata().CountDownload()
 
 		// should be expired now
 		assert.True(file.IsExpired(), "expected to be expired")
@@ -57,18 +55,7 @@ func TestSafeFileDownloadExpirey(t *testing.T) {
 		// We should still be able to get a download of this file though.
 		reader, err := file.NewReader(password)
 		assert.Nil(err, "should be able to get a reader for this file")
-
-		_, err = io.Copy(io.Discard, reader)
-		assert.Nil(err)
 		reader.Close()
-
-		// shouldn't be cleaned yet, since ActiveDownloads > 0
-		assert.False(file.Clean(), "shouldn't be clean because still downloading")
-		assert.False(file.WasCleaned, "shouldn't be clean because still downloading")
-
-		file.Metadata().SubDownloader()
-
-		assert.Equal(file.Metadata().ActiveDownloads, 0, "expected 0 active download")
 
 		assert.True(file.Clean(), "should be able to clean now")
 	}

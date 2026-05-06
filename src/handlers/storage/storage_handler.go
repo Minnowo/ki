@@ -36,7 +36,7 @@ type StorageHandler struct {
 	downloadSessionStore *DownloadSessionStore
 }
 
-func NewFileStore(dir string, store FileStore, bcryptCost int) StorageHandler {
+func NewStorageHandler(dir string, store FileStore, bcryptCost int) StorageHandler {
 	return StorageHandler{
 		FileDir:              dir,
 		metadataStore:        store,
@@ -89,7 +89,7 @@ func (f *StorageHandler) RunExpireCheckLoop(interval time.Duration) bool {
 
 				f.metadataStore.ClearExpiredFiles()
 				f.uploadSessionStore.ClearExpired()
-				f.clearExpiredDownloadSessions()
+				f.downloadSessionStore.removeExpired()
 
 				log.Debug().Str("time", t.String()).Msg("clearing out expired files")
 			}
@@ -252,7 +252,6 @@ func (f *StorageHandler) saveFileWithProgress(file *os.File, upload FileUpload, 
 			Size:             fileSize,
 			Name:             upload.Filename,
 			Downloads:        0,
-			ActiveDownloads:  0,
 			AllowedDownloads: upload.AllowedDownloads,
 			UserSetPassword:  didUserGivePassword,
 			MemoryOnly:       upload.MemoryOnly,

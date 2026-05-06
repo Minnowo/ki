@@ -37,6 +37,10 @@ type DownloadSession struct {
 	pending []byte
 }
 
+func (session *DownloadSession) Close() error {
+	return session.Close()
+}
+
 // SeekUntil reads the session download until the given position.
 // The position must be ahead or equal to the current position, otherwise ErrInvalidSeek is returned.
 func (session *DownloadSession) SeekUntil(start int64) (int64, error) {

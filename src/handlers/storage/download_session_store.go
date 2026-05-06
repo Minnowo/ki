@@ -40,22 +40,23 @@ func (s *DownloadSessionStore) remove(id SessionToken) {
 	delete(s.sessions, id)
 }
 
-// removeExpired removes timed-out sessions from the store and returns them.
-// The caller is responsible for closing each session's Stream and calling SubDownloader.
-func (s *DownloadSessionStore) removeExpired() []*DownloadSession {
+// removeExpired closes removes timed-out sessions from the store.
+func (s *DownloadSessionStore) removeExpired() {
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	var expired []*DownloadSession
 
 	for id, session := range s.sessions {
+
 		if now.Sub(session.LastActivity) > s.timeout {
+
+			session.Close()
+
 			delete(s.sessions, id)
-			expired = append(expired, session)
+
 			log.Info().Str("id", id.Hex()).Msg("swept expired download session")
 		}
 	}
-
-	return expired
 }

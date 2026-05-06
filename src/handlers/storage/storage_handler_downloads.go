@@ -13,6 +13,14 @@ import (
 
 func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) error {
 
+	var fstream io.ReadCloser
+
+	defer func() {
+		if fstream != nil {
+			fstream.Close()
+		}
+	}()
+
 	file, err := f.metadataStore.WithFile(key, func(file *KiFile) error {
 
 		if file.IsExpired() {
@@ -23,7 +31,15 @@ func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) erro
 			return ErrNeedsAuth
 		}
 
-		file.AddDownloader()
+		// don't even need to track active downloads here.
+		// having the file handle is enough to prevent deletion of the file.
+		file.CountDownload()
+
+		if handle, err := file.NewReader(password); err != nil {
+			return err
+		} else {
+			fstream = handle
+		}
 
 		return nil
 	})
@@ -32,26 +48,6 @@ func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) erro
 	if err != nil {
 		return err
 	}
-
-	// We need to clear the ActiveDownload we put from the above call
-	defer f.metadataStore.WithFile(key, func(file *KiFile) error {
-
-		file.SubDownloader()
-
-		if file.ActiveDownloads < 0 {
-			log.Error().Msg("active downloads < 0, this should be impossible!")
-		}
-
-		return nil
-	})
-
-	fstream, err := file.NewReader(password)
-
-	if err != nil {
-		return err
-	}
-
-	defer fstream.Close()
 
 	if r, ok := w.(http.ResponseWriter); ok {
 
@@ -81,6 +77,8 @@ func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) erro
 // If the returned error is nil, then the FileID and *KiMetadata should not be used.
 func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (SessionToken, *KiMetadata, error) {
 
+	var fstream io.ReadCloser
+
 	file, err := f.metadataStore.WithFile(fileID, func(file *KiFile) error {
 
 		if file.IsExpired() {
@@ -91,23 +89,24 @@ func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (S
 			return ErrNeedsAuth
 		}
 
-		file.AddDownloader()
+		file.CountDownload()
+
+		if handle, err := file.NewReader(password); err != nil {
+			return err
+		} else {
+			fstream = handle
+		}
 
 		return nil
 	})
 
 	if err != nil {
-		return SessionToken{}, nil, err
-	}
 
-	stream, err := file.NewReader(password)
+		// worth checking this here in case the underlying store implementation returns an error that it shouldn't.
+		if fstream != nil {
+			fstream.Close()
+		}
 
-	if err != nil {
-		// Undo the AddDownloader we just committed.
-		f.metadataStore.WithFile(fileID, func(file *KiFile) error {
-			file.SubDownloader()
-			return nil
-		})
 		return SessionToken{}, nil, err
 	}
 
@@ -115,7 +114,7 @@ func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (S
 	sessionID.New()
 
 	f.downloadSessionStore.add(sessionID, &DownloadSession{
-		Stream:       stream,
+		Stream:       fstream,
 		TotalBytes:   file.Size,
 		FileID:       fileID,
 		File:         *file.Metadata(),
@@ -179,25 +178,7 @@ func (f *StorageHandler) closeDownloadSession(sessionID SessionToken, session *D
 
 	log.Info().Hex("id", sessionID[:]).Msg("download stream closed")
 
-	f.downloadSessionStore.remove(sessionID)
-
 	session.Stream.Close()
 
-	f.metadataStore.WithFile(session.FileID, func(file *KiFile) error {
-		file.SubDownloader()
-		return nil
-	})
-}
-
-func (f *StorageHandler) clearExpiredDownloadSessions() {
-
-	for _, session := range f.downloadSessionStore.removeExpired() {
-
-		session.Stream.Close()
-
-		f.metadataStore.WithFile(session.FileID, func(file *KiFile) error {
-			file.SubDownloader()
-			return nil
-		})
-	}
+	f.downloadSessionStore.remove(sessionID)
 }

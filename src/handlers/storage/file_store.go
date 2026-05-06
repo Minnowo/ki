@@ -27,6 +27,9 @@ type FileStore interface {
 	// Any change to the file in this method will be persisted into the store unless he mutate function returns an error.
 	// The final state of the file will be returned as a copy, unless there was an error.
 	// Mutate may get an expired file, and it should check for that case.
+	//
+	// Depending on the implementation of the store, this function may return an error even if the mutate function didn't.
+	// Cases such as bbolt.Commit() failing to write data to this disk.
 	WithFile(id FileID, mutate func(file *KiFile) error) (*KiFile, error)
 
 	// ClearExpiredFiles deletes any files from the store and disk which have been expired.

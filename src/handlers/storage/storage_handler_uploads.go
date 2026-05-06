@@ -220,7 +220,6 @@ func (f *StorageHandler) CompleteUploadSession(uploadId SessionToken, username s
 			Size:             session.TotalBytes,
 			Name:             session.Filename,
 			Downloads:        0,
-			ActiveDownloads:  0,
 			AllowedDownloads: session.AllowedDownloads,
 			UserSetPassword:  session.HasPassword,
 			MemoryOnly:       session.MemoryOnly,
