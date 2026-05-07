@@ -49,8 +49,7 @@ var (
 
 	// This is the max number of bytes per request.
 	// If the file is larger than this, we will chunk the file.
-	// maxChunkSize   int64         = 50 * MB
-	maxChunkSize   int64         = 2 * MB
+	maxChunkSize   int64         = 50 * MB
 	sessionTimeout time.Duration = 30 * time.Minute
 )
 
