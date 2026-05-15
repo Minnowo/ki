@@ -1,18 +1,16 @@
-import { ApiDownloadData, ApiDownloadDone, ApiDownloadInit } from "../api/api_download";
-import { fmtProgress, sleep } from "../util";
-import { BuildBaseDownloadUI } from "./download";
+import {ApiDownloadData, ApiDownloadDone, ApiDownloadInit} from '../api/api_download';
+import {fmtProgress, sleep} from '../util';
+import {BuildBaseDownloadUI} from './download';
 
-
-export const SetupPickerAPI = async (root:HTMLElement, fileId: string, filename:string, hasPassword: boolean) => {
-
+export const SetupPickerAPI = async (root: HTMLElement, fileId: string, filename: string, hasPassword: boolean) => {
     if (!window.showSaveFilePicker) {
         console.error('no save file picker api');
         return false;
     }
 
-    const { div, form, status, input } = BuildBaseDownloadUI(
-        "Picker API",
-        "Stream the file to disk using the showOpenFilePicker API (if avialable)."
+    const {div, form, status, input} = BuildBaseDownloadUI(
+        'Picker API',
+        'Stream the file to disk using the showOpenFilePicker API (if avialable).'
     );
 
     if (!hasPassword) {
@@ -22,13 +20,12 @@ export const SetupPickerAPI = async (root:HTMLElement, fileId: string, filename:
     form.onsubmit = (event) => {
         event.preventDefault();
 
-        const setStatus = (s: string) => status.textContent = s;
-        const token = (hasPassword) ? btoa(`0:${input!.value}`) : null;
+        const setStatus = (s: string) => (status.textContent = s);
+        const token = hasPassword ? btoa(`0:${input!.value}`) : null;
 
         downloadWithPickerAPI(fileId, filename, token, setStatus)
             .then((r) => setStatus(r))
             .catch((e) => setStatus(`Error: ${e}`));
-
     };
 
     root.appendChild(div);
@@ -37,11 +34,11 @@ export const SetupPickerAPI = async (root:HTMLElement, fileId: string, filename:
 };
 
 const downloadWithPickerAPI = async (
-    fileIdHex:string, 
-    filename: string, 
-    basicToken: string|null, 
-    setStatus: (s:string)=>void): Promise<string> => {
-
+    fileIdHex: string,
+    filename: string,
+    basicToken: string | null,
+    setStatus: (s: string) => void
+): Promise<string> => {
     if (!window.showSaveFilePicker) {
         return 'Save file picker API unavailable';
     }
@@ -53,7 +50,7 @@ const downloadWithPickerAPI = async (
     } catch (e) {
         console.error(e);
         if (!(e instanceof Error)) {
-                    return `Unexpected error: ${e}`;
+            return `Unexpected error: ${e}`;
         }
         if (e.name === 'AbortError') {
             return 'Aborted';
@@ -70,7 +67,7 @@ const downloadWithPickerAPI = async (
     } catch (e) {
         console.error(e);
         if (!(e instanceof Error)) {
-                    return `Unexpected error: ${e}`;
+            return `Unexpected error: ${e}`;
         }
         return e.message;
     }

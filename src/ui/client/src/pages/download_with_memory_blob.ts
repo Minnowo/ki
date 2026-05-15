@@ -1,12 +1,11 @@
-import { ApiDownloadData, ApiDownloadDone, ApiDownloadInit } from "../api/api_download";
-import { fmtProgress, sleep } from "../util";
-import { BuildBaseDownloadUI } from "./download";
+import {ApiDownloadData, ApiDownloadDone, ApiDownloadInit} from '../api/api_download';
+import {fmtProgress, sleep} from '../util';
+import {BuildBaseDownloadUI} from './download';
 
-export const SetupMemoryBlob = async (root:HTMLElement, fileId: string, filename:string, hasPassword: boolean) => {
-
-    const { div, form, status, input } = BuildBaseDownloadUI(
-        "In Memory",
-        "Download and combine the file in memory. This is not recommended and should only be used if no other option is available."
+export const SetupMemoryBlob = async (root: HTMLElement, fileId: string, filename: string, hasPassword: boolean) => {
+    const {div, form, status, input} = BuildBaseDownloadUI(
+        'In Memory',
+        'Download and combine the file in memory. This is not recommended and should only be used if no other option is available.'
     );
 
     if (!hasPassword) {
@@ -16,13 +15,12 @@ export const SetupMemoryBlob = async (root:HTMLElement, fileId: string, filename
     form.onsubmit = (event) => {
         event.preventDefault();
 
-        const setStatus = (s: string) => status.textContent = s;
-        const token = (hasPassword) ? btoa(`0:${input!.value}`) : null;
+        const setStatus = (s: string) => (status.textContent = s);
+        const token = hasPassword ? btoa(`0:${input!.value}`) : null;
 
         downloadWithInMemoryBlob(fileId, filename, token, setStatus)
             .then((r) => setStatus(r))
             .catch((e) => setStatus(`Error: ${e}`));
-
     };
 
     root.appendChild(div);
@@ -78,7 +76,7 @@ const downloadWithInMemoryBlob = async (
 
             const reader = resp.body.getReader();
             while (true) {
-                const { done, value } = await reader.read();
+                const {done, value} = await reader.read();
                 if (done) break;
                 if (value) {
                     chunks.push(value);
@@ -91,14 +89,14 @@ const downloadWithInMemoryBlob = async (
         await ApiDownloadDone(fileIdHex, sessionID).catch(() => {});
     }
 
-    const blob = new Blob(chunks, { type: "application/octet-stream" });
+    const blob = new Blob(chunks, {type: 'application/octet-stream'});
 
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
     a.download = filename; // set filename
     a.click();
     URL.revokeObjectURL(url);
 
-    return "Done";
+    return 'Done';
 };
