@@ -3,6 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
+        "format": "prettier . -w",
         "build": "npm run build:main && npm run build:worker",
         "build:main": "esbuild src/index.ts --bundle --minify --sourcemap --outfile=../static/js/ki.js --format=iife",
         "build:worker": "esbuild src/worker/sw.ts --bundle --minify --sourcemap --outfile=../static/js/sw.js --format=iife",

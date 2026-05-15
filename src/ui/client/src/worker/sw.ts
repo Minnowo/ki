@@ -1,91 +1,140 @@
-import { ApiDownloadData, ApiDownloadDone, ApiDownloadInit } from "../api/api_download";
-import { SW_DL_PREFIX } from "../constants";
-import { sleep } from "../util";
+import {ApiDownloadData, ApiDownloadDone, ApiDownloadInit} from '../api/api_download';
+import {SW_DL_PREFIX} from '../constants';
+import {sleep} from '../util';
 
 export {};
 
 declare var self: ServiceWorkerGlobalScope;
 
-const handleDownloadRequest = (fileIdHex: string, token: string|null): Promise<Response> => {
-
+const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise<Response> => {
     return (async (): Promise<Response> => {
+        console.info('beginning chunked download');
 
-        console.info("beginning chunked download");
-        
         let sessionId: string;
         let filename: string;
         let fileSize: number;
-        try{
+        let maxChunk: number;
+        try {
             const init = await ApiDownloadInit(fileIdHex, token);
             sessionId = init.session_id;
             filename = init.filename;
             fileSize = init.file_size;
-        } catch(e) {
+            maxChunk = init.max_chunk_size;
+        } catch (e) {
             return new Response('Failed to initialize download session', {status: 400});
         }
 
-        const signalDone = () => ApiDownloadDone(fileIdHex, sessionId).catch(() => {})
+        const signalDone = () => ApiDownloadDone(fileIdHex, sessionId).catch(() => {});
 
+        const MIN_SIZE = 1024 * 1024;
+        const MAX_SIZE = 10 * 1024 * 1024;
+
+        const minFetchSize = Math.min(MIN_SIZE, Math.floor(maxChunk / 2));
         const retryAmnt = 10;
         let bytesRead = 0;
         let retries = 0;
         let chunk = 0;
 
-        const stream = new ReadableStream<Uint8Array>({
-            async cancel(reason: string) {
-                console.error(`Canceled download: ${reason}`);
-                await signalDone();
-            },
-            async pull(controller: ReadableStreamDefaultController) {
+        const queueingStrategy = new ByteLengthQueuingStrategy({
+            highWaterMark: Math.min(MAX_SIZE, Math.max(MIN_SIZE, maxChunk)),
+        });
 
-                while (bytesRead < fileSize) {
-                    let resp: Response;
+        const stream = new ReadableStream<Uint8Array>(
+            {
+                async cancel(reason: string) {
+                    console.error(`Canceled download: ${reason}`);
+                    await signalDone();
+                },
+                async pull(controller: ReadableStreamDefaultController) {
 
-                    try {
-                        console.info(`pulling chunk ${chunk + 1}`);
-                        resp = await ApiDownloadData(fileIdHex, sessionId);
-                        chunk++;
-                    } catch (e) {
-                        retries++;
-                        if (retries > retryAmnt) {
-                            await signalDone();
-                            controller.error(new Error('Max retries exceeded'));
+                    let size;
+
+                    while (true) {
+                        // https://developer.mozilla.org/en-US/docs/Web/API/ReadableByteStreamController/desiredSize
+                        // desiredSize == null: stream errored
+                        // desiredSize == 0   : stream closed
+                        // desiredSize <  0   : need to apply backpressure
+                        // desiredSize >  0   : number of bytes wanted
+                        size = controller.desiredSize;
+
+                        if (size === null) {
+                            console.warn('stream errored, null desired size');
                             return;
                         }
-                        console.info(`retrying after ${500 * retries}ms`);
-                        await sleep(500 * retries);
-                        continue;
+
+                        if (size === 0) {
+                            console.warn('stream closed, 0 desired size');
+                            return;
+                        }
+
+                        if (size <= minFetchSize) {
+                            console.info(`waiting for backpressure.... (size: ${size})`);
+                            await sleep(100);
+                            continue;
+                        }
+
+                        // always want the desired size to be >= 1
+                        size -= 1;
+
+                        break;
                     }
 
-                    if (resp.status !== 206) {
-                        await signalDone();
-                        controller.error(new Error(`Unexpected status: ${resp.status}`));
+                    while (bytesRead < fileSize) {
+                        let resp: Response;
+
+                        try {
+                            // this is for the http range header, so the end-1 is normal.
+                            // server will never send more than it's max chunk size, no need to worry about requesting more than that.
+                            const start = bytesRead;
+                            const end = bytesRead + size - 1;
+
+                            console.info(`pulling chunk ${chunk + 1} (${start} to ${end}) (${size} bytes)`);
+
+                            resp = await ApiDownloadData(fileIdHex, sessionId, start, end);
+                            chunk++;
+                        } catch (e) {
+                            retries++;
+                            if (retries > retryAmnt) {
+                                await signalDone();
+                                controller.error(new Error('Max retries exceeded'));
+                                return;
+                            }
+                            console.info(`retrying after ${500 * retries}ms`);
+                            await sleep(500 * retries);
+                            continue;
+                        }
+
+                        if (resp.status !== 206) {
+                            await signalDone();
+                            controller.error(new Error(`Unexpected status: ${resp.status}`));
+                            return;
+                        }
+
+                        if (resp.body === null) {
+                            await signalDone();
+                            controller.error(new Error('Null response body'));
+                            return;
+                        }
+
+                        const reader = resp.body.getReader();
+                        while (true) {
+                            const {done, value} = await reader.read();
+                            if (done) break;
+                            controller.enqueue(value);
+                            bytesRead += value.length;
+                        }
+
+                        // wait for the next pull call
                         return;
                     }
 
-                    if (resp.body === null) {
-                        await signalDone();
-                        controller.error(new Error('Null response body'));
-                        return;
-                    }
-
-                    const reader = resp.body.getReader();
-                    while (true) {
-                        const {done, value} = await reader.read();
-                        if (done) break;
-                        controller.enqueue(value);
-                        bytesRead += value.length;
-                    }
-
-                    // wait for the next pull call
-                    return;
-                }
-
-                console.info("download finished");
-                await signalDone();
-                controller.close();
+                    console.info('download finished');
+                    await signalDone();
+                    controller.close();
+                },
             },
-        });
+            queueingStrategy
+        );
 
         const encodedFilename = encodeURIComponent(filename);
         return new Response(stream, {
@@ -100,19 +149,19 @@ const handleDownloadRequest = (fileIdHex: string, token: string|null): Promise<R
 };
 
 self.addEventListener('install', (event: ExtendableEvent) => {
-    console.info("install");
+    console.info('install');
     event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event: ExtendableEvent) => {
-    console.info("activate");
+    console.info('activate');
     event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', (event: FetchEvent) => {
     const url = new URL(event.request.url);
-    console.info("got url: ", url);
-    if (!url.pathname.startsWith(SW_DL_PREFIX)){
+    console.info('got url: ', url);
+    if (!url.pathname.startsWith(SW_DL_PREFIX)) {
         return;
     }
 
@@ -122,7 +171,7 @@ self.addEventListener('fetch', (event: FetchEvent) => {
     // but it's probably the simplest option that doesn't involve MessageChannel back and forth with the service worker.
     // We can't use regular fetch requests because we want to trigger a browser download so the user can stream the file to disk.
     const pass = url.searchParams.get('p');
-    const token = (pass) ? btoa(`0:${pass}`) : null;
+    const token = pass ? btoa(`0:${pass}`) : null;
 
     event.respondWith(handleDownloadRequest(fileIdHex, token));
 });

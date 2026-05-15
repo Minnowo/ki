@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"ki/src/api"
+	"ki/src/config"
 	"ki/src/handlers/storage"
 	"net/http"
 )
@@ -42,12 +43,14 @@ func (a *APIV1) download_session_init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.WriteJSON(w, struct {
-		SessionID string `json:"session_id"`
-		FileSize  int64  `json:"file_size"`
-		Filename  string `json:"filename"`
+		SessionID    string `json:"session_id"`
+		FileSize     int64  `json:"file_size"`
+		Filename     string `json:"filename"`
+		MaxChunkSize int64  `json:"max_chunk_size"`
 	}{
-		SessionID: sessionID.Hex(),
-		FileSize:  meta.Size,
-		Filename:  meta.Name,
+		SessionID:    sessionID.Hex(),
+		FileSize:     meta.Size,
+		Filename:     meta.Name,
+		MaxChunkSize: config.MaxChunkSize(),
 	})
 }

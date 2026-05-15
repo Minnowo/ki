@@ -8,12 +8,20 @@ export const ApiDownloadInit = (fileId: string, basicToken: string | null) => {
     });
 };
 
-export const ApiDownloadData = (fileId: string, sessionId: string) => {
+export const ApiDownloadData = (fileId: string, sessionId: string, start?: number, end?: number) => {
+    const headers: Record<string, string> = {
+        Authorization: authBearer(sessionId),
+    };
+
+    if (start !== undefined && end !== undefined) {
+        headers['Range'] = `bytes=${start}-${end}`;
+    } else if (start !== undefined) {
+        headers['Range'] = `bytes=${start}-`;
+    }
+
     return apiFetch(`/api/dl/s/data/${fileId}`, {
         method: 'GET',
-        headers: {
-            Authorization: authBearer(sessionId),
-        },
+        headers: headers,
     });
 };
 
