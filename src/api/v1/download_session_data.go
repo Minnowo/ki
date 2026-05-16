@@ -10,6 +10,7 @@ import (
 	"ki/src/pkg/request"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -39,6 +40,8 @@ func (a *APIV1) download_session_data(w http.ResponseWriter, r *http.Request) {
 		start = -1
 		stop = -1
 	}
+
+	rc := http.NewResponseController(w)
 
 	err = a.fileStore.WithDownloadSession(sessionID, fileID, func(session *storage.DownloadSession) error {
 
@@ -77,11 +80,23 @@ func (a *APIV1) download_session_data(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		n, err := session.WriteToN(w, length)
+		for {
+			rc.SetWriteDeadline(time.Now().Add(time.Minute * 1))
 
-		log.Debug().Int64("n", n).Hex("id", fileID[:]).Msg("sent download chunk")
+			n, err := session.WriteToN(w, min(128*1024, length))
 
-		return err
+			length -= n
+
+			if err != nil {
+				return err
+			}
+
+			if length == 0 {
+				break
+			}
+		}
+
+		return nil
 	})
 
 	if err != nil {

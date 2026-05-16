@@ -6,6 +6,18 @@ export {};
 
 declare var self: ServiceWorkerGlobalScope;
 
+const downloads: Map<string, { downloaded: number; total: number }> = new Map();
+
+async function broadcastProgress() {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  for (const client of clients) {
+    client.postMessage({
+      type: 'DOWNLOAD_PROGRESS',
+      downloads: [...downloads]
+    });
+  }
+}
+
 const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise<Response> => {
     return (async (): Promise<Response> => {
         console.info('beginning chunked download');
@@ -25,6 +37,7 @@ const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise
         }
 
         const signalDone = () => ApiDownloadDone(fileIdHex, sessionId).catch(() => {});
+
 
         const MIN_SIZE = 1024 * 1024;
         const MAX_SIZE = 10 * 1024 * 1024;
@@ -118,10 +131,21 @@ const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise
 
                         const reader = resp.body.getReader();
                         while (true) {
-                            const {done, value} = await reader.read();
-                            if (done) break;
-                            controller.enqueue(value);
-                            bytesRead += value.length;
+                            try {
+                                const { done, value } = await reader.read();
+                                if (done) {
+                                    break;
+                                }
+                                controller.enqueue(value);
+                                bytesRead += value.length;
+
+                                downloads.set(fileIdHex, { downloaded: bytesRead, total: fileSize });
+                                await broadcastProgress();
+
+                            } catch (e) {
+                                console.error(e);
+                                return;
+                            }
                         }
 
                         // wait for the next pull call
@@ -140,7 +164,13 @@ const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise
         return new Response(stream, {
             status: 200,
             headers: {
-                'Content-Type': 'application/octet-stream',
+                'Content-Security-Policy': "default-src 'none'",
+                'X-Content-Security-Policy': "default-src 'none'",
+                'X-WebKit-CSP': "default-src 'none'",
+                'X-XSS-Protection': '1; mode=block',
+                'Cross-Origin-Embedder-Policy': 'require-corp',
+
+                'Content-Type': 'application/octet-stream; charset=utf-8',
                 'Content-Length': String(fileSize),
                 'Content-Disposition': `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
             },
@@ -148,9 +178,13 @@ const handleDownloadRequest = (fileIdHex: string, token: string | null): Promise
     })();
 };
 
-self.addEventListener('install', (event: ExtendableEvent) => {
+self.addEventListener('message', (event) => {
+    event.source?.postMessage({ reply: 'pong' });
+});
+
+self.addEventListener('install', (_: ExtendableEvent) => {
     console.info('install');
-    event.waitUntil(self.skipWaiting());
+    self.skipWaiting();
 });
 
 self.addEventListener('activate', (event: ExtendableEvent) => {
@@ -161,8 +195,13 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 self.addEventListener('fetch', (event: FetchEvent) => {
     const url = new URL(event.request.url);
     console.info('got url: ', url);
+
     if (!url.pathname.startsWith(SW_DL_PREFIX)) {
         return;
+    }
+
+    if (url.pathname.endsWith('/ping')) {
+        return event.respondWith(new Response('pong'))
     }
 
     const fileIdHex = url.pathname.slice(SW_DL_PREFIX.length);
