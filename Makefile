@@ -11,11 +11,10 @@ LDFLAGS += -X main.BuildVersion=$(VERSION)
 
 TAGS    := netgo osusergo sqlite_omit_load_extension
 
-TAILWIND       := tailwind
-TEMPL          := templ
+TAILWIND := tailwind
+TEMPL    := templ
 
 UI       := ./src/ui
-ASSETS   := ./src/assets
 SITE_SRC := ./main.go
 SITE_DST := ./main.o
 
@@ -24,16 +23,14 @@ download-tools:
 	go install github.com/a-h/templ/cmd/templ@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 
-
 generate:
 	$(TEMPL) generate
-	$(TAILWIND)  -i $(ASSETS)/tailwind.css -o $(ASSETS)/static/c/main.css
-	(cd ./src/ui/ts && npm run build)
+	(cd ./src/ui/client && npm run build)
+	$(TAILWIND) -i $(UI)/tailwind.css -o $(UI)/static/c/main.css
 
 format:
 	gofmt -w -s .
 	goimports -w .
-
 
 test: format generate
 	go test ./...
@@ -51,5 +48,5 @@ build-site:
 	go build -ldflags "$(LDFLAGS)" -tags="$(TAGS)" -o $(SITE_DST) $(SITE_SRC)
 
 run: format generate
-	LOG_LEVEL=debug go run $(SITE_SRC) run --master-secret 12345678 
+	LOG_LEVEL=debug go run $(SITE_SRC) run --master-secret 12345678 # --tls-cert ./ki_files/nkey
 

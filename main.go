@@ -16,15 +16,17 @@ func main() {
 
 	cmd := &cli.Command{
 		Name:  "Ki",
-		Usage: "A secure upload portal",
+		Usage: "A temporary file sharing service",
 		Commands: []*cli.Command{
 			{
 				Name:        "registry",
-				Description: "Commands for working with the user registry",
+				Usage:       "Commands for working with the user registry",
+				Description: "The user registry is a simple JSON  file that contains the users who can upload files. Each user requires a username and password.",
 				Commands: []*cli.Command{
 					{
 						Name:        "create",
-						Description: "Create a new user registry",
+						Usage:       "Create a new registry with the given users",
+						Description: "Create a new user registry with the given users. If the file already exists, it will be overwritten.",
 						Action:      cmd.CmdCreateUserRegistry,
 						Flags: []cli.Flag{
 							&cli.StringSliceFlag{
@@ -51,6 +53,7 @@ func main() {
 					},
 					{
 						Name:        "validate",
+						Usage:       "Parse and validate the registry",
 						Description: "Parse and validate the registry",
 						Action:      cmd.CmdValidateUserRegistry,
 						Flags: []cli.Flag{
@@ -66,6 +69,7 @@ func main() {
 					},
 					{
 						Name:        "format",
+						Usage:       "Parse, validate and format the registry",
 						Description: "Validates the registry and formats it nicely",
 						Action:      cmd.CmdFormatUserRegistry,
 						Flags: []cli.Flag{
@@ -83,6 +87,7 @@ func main() {
 			},
 			{
 				Name:        "run",
+				Usage:       "Run the server",
 				Description: "Run the server",
 				Action:      cmd.CmdServerMain,
 				Flags: []cli.Flag{
