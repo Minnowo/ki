@@ -12,102 +12,111 @@ import(
     "fmt"
 )
 
-templ checksumInformation(view *PageDownloadFileView ){ 
-
-    {{
-        sha512 := hex.EncodeToString(view.File.Sha512Hash)
-        sha256 := hex.EncodeToString(view.File.Sha256Hash)
-        sha1   := hex.EncodeToString(view.File.Sha1Hash)
-        md5    := hex.EncodeToString(view.File.Md5Hash)
-    }}
-    <br/>
-    <h1>Checksums</h1>
-    <br/>
-        
-    <table class="w-full table-padded">
-    <tbody class="text-right">
-
-        <tr title={ sha512 }>
-            <td class="px-2"> SHA512 </td>
-            <td class="w-full">
-                <pre>
-                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
-                    { sha512 }
-                </textarea>
-                </pre>
-            </td>
-        </tr>
-
-        <tr title={ sha256 }>
-            <td class="px-2"> SHA256 </td>
-            <td class="w-full">
-                <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
-                    { sha256 }
-                </textarea>
-                </pre>
-            </td>
-        </tr>
-
-        <tr title={ sha1 }>
-            <td class="px-2"> SHA1 </td>
-            <td class="w-full">
-                <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
-                    { sha1 }
-                </textarea>
-                </pre>
-            </td>
-        </tr>
-
-        <tr title={ md5 }>
-            <td class="px-2"> MD5 </td>
-            <td class="w-full">
-                <pre> 
-                <textarea class="w-full whitespace-nowrap" rows="1" spellcheck="false">
-                    { md5 }
-                </textarea>
-                </pre>
-            </td>
-        </tr>
-
-    </tbody>
-    </table>
+// helpSummary is the clickable title of a download option, the help text goes after it inside the <details>.
+// Keep in sync with BuildBaseDownloadUI in client/src/pages/download.ts.
+templ helpSummary(title string) {
+    <summary class="flex items-baseline gap-2 cursor-pointer">
+        <h3>{ title }</h3>
+        <small>(click for help)</small>
+    </summary>
 }
 
-templ otherDownloadOptions(view *PageDownloadFileView, url string ){ 
+templ checksumRow(name string, hash string) {
+    <tr title={ hash }>
+        <th>{ name }</th>
+        <td><code class="break-all">{ hash }</code></td>
+    </tr>
+}
+
+templ checksumInformation(view *PageDownloadFileView) {
+
+    <div class="surface-1 flex flex-col gap-4">
+        <h2>Checksums</h2>
+
+        <div class="overflow-x-auto">
+            <table>
+            <tbody>
+                @checksumRow("SHA512", hex.EncodeToString(view.File.Sha512Hash))
+                @checksumRow("SHA256", hex.EncodeToString(view.File.Sha256Hash))
+                @checksumRow("SHA1", hex.EncodeToString(view.File.Sha1Hash))
+                @checksumRow("MD5", hex.EncodeToString(view.File.Md5Hash))
+            </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+templ otherDownloadOptions(view *PageDownloadFileView, url string) {
 
     {{
         dl := view.Origin + url
 
         var curlCmd string
+        var curlWinCmd string
         var wgetCmd string
 
         if view.File.UserSetPassword {
             curlCmd = fmt.Sprintf("curl %s --user 0 -O", dl)
+            curlWinCmd = fmt.Sprintf("curl.exe %s --user 0 -O", dl)
             wgetCmd = fmt.Sprintf("wget %s --user=0 --ask-password", dl)
         } else {
             curlCmd = fmt.Sprintf("curl %s -O", dl)
+            curlWinCmd = fmt.Sprintf("curl.exe %s -O", dl)
             wgetCmd = fmt.Sprintf("wget %s", dl)
         }
     }}
 
-    if view.File.IsLarge() {
+    // currently nothing for large downloads
+    if !view.File.IsLarge() {
 
-        // currently nothing for large downloads
+        <div class="surface-1 flex flex-col gap-4">
+            <h2>Other downloads</h2>
 
-    } else {
-        <br/>
-        <h1>Other downloads</h1>
-        <br/>
-            
-        <textarea class="w-full whitespace-nowrap my-2 font-mono" title="Curl command to download the file" rows="1" spellcheck="false">
-            { curlCmd }
-        </textarea>
+            <div class="surface-2 flex flex-col gap-2">
+                <details class="flex flex-col gap-2">
+                    @helpSummary("curl")
+                    <p>
+                        Downloads the file from a terminal. curl comes with macOS and most Linux systems,
+                        which makes it handy for downloading straight onto a server or from a script.
+                        if view.File.UserSetPassword {
+                            curl will ask for the file password when you run it.
+                        }
+                        The file is saved in the current folder, named after its file id.
+                    </p>
+                </details>
+                <pre><code>{ curlCmd }</code></pre>
+            </div>
 
-        <textarea class="w-full whitespace-nowrap my-2 font-mono" title="wget command to download the file" rows="1" spellcheck="false">
-            { wgetCmd }
-        </textarea>
+            <div class="surface-2 flex flex-col gap-2">
+                <details class="flex flex-col gap-2">
+                    @helpSummary("curl (Windows)")
+                    <p>
+                        The curl command for Windows 10 and newer, which come with curl built in.
+                        Paste it into cmd or PowerShell.
+                        if view.File.UserSetPassword {
+                            curl will ask for the file password when you run it.
+                        }
+                        The file is saved in the current folder, named after its file id.
+                    </p>
+                </details>
+                <pre><code>{ curlWinCmd }</code></pre>
+            </div>
+
+            <div class="surface-2 flex flex-col gap-2">
+                <details class="flex flex-col gap-2">
+                    @helpSummary("wget")
+                    <p>
+                        Downloads the file from a terminal. wget is installed on most Linux systems,
+                        so use it where curl isn't available.
+                        if view.File.UserSetPassword {
+                            wget will ask for the file password when you run it.
+                        }
+                        The file is saved in the current folder, named after its file id.
+                    </p>
+                </details>
+                <pre><code>{ wgetCmd }</code></pre>
+            </div>
+        </div>
     }
 }
 
@@ -116,25 +125,18 @@ templ PageDownload(view *BaseView) {
 
     @Base(view) {
 
-        <br/>
-
-        <h1 title="Download a file">
-            Download a file
-        </h1>
-
-        <br/>
+        <h1 title="Download a file">Download a file</h1>
 
         <p>
-            To download a file, navigate to 
-            <span class="font-mono"> { "/download/{fileId}" } </span>
-            where <span class="font-mono"> { "{fileId}" } </span>
+            To download a file, navigate to <code>{ "/download/{fileId}" }</code>
+            where <code>{ "{fileId}" }</code>
             is the { strconv.Itoa(storage.FileIDSize) } byte file identifier of the file you want to download.
         </p>
 
     }
 }
 
-templ PageDownloadFile( view *PageDownloadFileView) {
+templ PageDownloadFile(view *PageDownloadFileView) {
 
     @Base(&view.BaseView) {
 
@@ -150,93 +152,130 @@ templ PageDownloadFile( view *PageDownloadFileView) {
             }
         }}
 
-        <br/>
+        <div>
+            <h1 class="break-words" title="Original filename">
+                if view.File.Name == "" {
+                    { idHex }
+                } else {
+                    { view.File.Name }
+                }
+            </h1>
+            <small title="The file size">{ bytes.PrettyByteSize64(view.File.Size) }</small>
+        </div>
 
-        <h3 class="whitespace-pre-wrap break-words" title="Original filename"> 
+        if config.SHOW_DOWNLOADS_REMAINING || config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING || config.SHOW_DOWNLOAD_EXPIRE_TIME {
 
-            if view.File.Name == "" {
-                { idHex }
-            } else {
-                { view.File.Name }
-            }
-        </h3>
+            <div class="overflow-x-auto">
+                <table>
+                <tbody>
 
-        <pre class="The file size">
-            { bytes.PrettyByteSize64(view.File.Size) }
-        </pre>
+                    if config.SHOW_DOWNLOADS_REMAINING {
+                        <tr title="The number of downloads until expiry">
+                            <th>Remaining</th>
+                            <td>{ strconv.Itoa(view.File.AllowedDownloads - view.File.Downloads) }</td>
+                        </tr>
+                    }
 
-        <br/>
+                    if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
+                        <tr title="Remaining time until expiry">
+                            <th>Expires in</th>
+                            <td>{ formatDuration(view.File.Expires.Sub(time.Now())) }</td>
+                        </tr>
+                    }
 
-        <table class="table-padded">
-        <tbody>
+                    if config.SHOW_DOWNLOAD_EXPIRE_TIME {
+                        <tr title="The time of expiry (server side)">
+                            <th>Expires</th>
+                            <td>{ view.File.Expires.Format(config.EXPIREY_TIME_FORMAT) }</td>
+                        </tr>
+                    }
 
-            if config.SHOW_DOWNLOADS_REMAINING {
-
-                <tr title="The number of downloads until expirey">
-                    <td class="px-2 text-right"> Remaining </td>
-                    <td class="px-2 ">
-                        <pre> 
-                            { strconv.Itoa(view.File.AllowedDownloads- view.File.Downloads) }
-                        </pre>
-                    </td>
-                </tr>
-            }
-
-            if config.SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING {
-
-                <tr title="Remaining time until expirey">
-                    <td class="px-2 text-right"> Expires in </td>
-                    <td class="px-2 ">
-                        <pre> 
-                            { formatDuration(view.File.Expires.Sub(time.Now())) }
-                        </pre>
-                    </td>
-                </tr>
-            }
-
-            if config.SHOW_DOWNLOAD_EXPIRE_TIME {
-
-                <tr title="The time of expirey (server side)">
-                    <td class="px-2 text-right"> Expires </td>
-                    <td class="px-2 ">
-                        <pre> 
-                            { view.File.Expires.Format(config.EXPIREY_TIME_FORMAT) }
-                        </pre>
-                    </td>
-                </tr>
-            }
-
-        </tbody>
-        </table>
-
-        <br/>
-
-        <h1> Download Options </h1>
-        <hr />
-        if view.File.IsLarge() {
-            <p>
-            The size of this file exceeds the proxy request limit.
-            Downloading it requires using multiple requests, and may be more complicated.
-            </p>
+                </tbody>
+                </table>
+            </div>
         }
-        <br/>
-        <div id="mount" class="flex flex-col gap-2 w-64">
 
-            if !view.File.IsLarge() {
+        <div class="surface-1 flex flex-col gap-4">
 
-                // direct http download only available for small files, works without javascript
-                <div class="text-left">
-                    <h2 title="Download the file with a normal browser download">Direct Download</h2>
-                    <form class="flex flex-col gap-1 m-0" action={ templ.SafeURL(ddl) } method="POST">
-                        @ui.CSRF(view.R)
-                        if view.File.UserSetPassword {
-                            <input type="password" name={ formkeys.DOWNLOAD_FORM_PASSWORD } placeholder="file password" title="Enter the password for this file" required>
-                        }
-                        <button type="submit">Download</button>
-                    </form>
-                </div>
-            }
+            <div class="flex flex-col gap-1">
+                <h2>Download options</h2>
+                if view.File.IsLarge() {
+                    <small class="text-c-error">The size of this file exceeds the proxy request limit.</small>
+                    <details >
+                        <summary class="cursor-pointer"><small>(click for help)</small></summary>
+                        <div class="flex flex-col gap-2">
+                        <p>
+                            This server is behind a proxy that limits how much data a single request can carry,
+                            meaning any file larger than { bytes.PrettyByteSize64(config.MaxChunkSize()) } cannot be downloaded in a single request.
+                            This file is bigger than that, so it can't be downloaded in one go.
+                        </p>
+                        <p>
+                            To bypass the proxy limit, files are downloaded in pieces and joined back together in your browser.
+                            The download options shown all do this differently, and each has its own advantages and disadvantages.
+                            See the table below, which might help you decide which one to use.
+                        </p>
+                        <div class="overflow-x-auto">
+                            <table>
+                            <thead>
+                                <tr>
+                                    <th>Option</th>
+                                    <th>Advantages</th>
+                                    <th>Disadvantages</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th>Picker API</th>
+                                    <td>Writes straight to disk as it downloads. The most reliable option for large files.</td>
+                                    <td>
+                                        Only works in Chromium based browsers (Chrome, Edge, Brave, ...),
+                                        see <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showOpenFilePicker#browser_compatibility" target="_blank" rel="noopener noreferrer">browser compatibility</a>.
+                                        Progress is only shown on this page, not in your browser's download list.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Service Worker</th>
+                                    <td>Works in most browsers. Shows up as a normal download in your browser's download list.</td>
+                                    <td>The download may be cut short if this page is closed, or if the browser stops the service worker.</td>
+                                </tr>
+                                <tr>
+                                    <th>In Memory</th>
+                                    <td>Works in any browser with JavaScript.</td>
+                                    <td>The whole file has to fit in memory, so large files can crash the tab. Nothing is saved until the download has finished.</td>
+                                </tr>
+                            </tbody>
+                            </table>
+                        </div>
+                        </div>
+                    </details>
+                }
+            </div>
 
+            <div id="mount" class="flex flex-col gap-2">
+
+                if !view.File.IsLarge() {
+
+                    // direct http download only available for small files, works without javascript
+                    <div class="surface-2 flex flex-col gap-2">
+                        <details class="flex flex-col gap-2">
+                            @helpSummary("Direct Download")
+                            <p>
+                                A normal browser download in a single request, like any other file on the web.
+                                It is the simplest option and works in every browser, even without JavaScript.
+                                Use this one unless it fails.
+                            </p>
+                        </details>
+                        <form class="flex flex-col gap-2" action={ templ.SafeURL(ddl) } method="POST">
+                            @ui.CSRF(view.R)
+                            if view.File.UserSetPassword {
+                                <input type="password" name={ formkeys.DOWNLOAD_FORM_PASSWORD } placeholder="File password" aria-label="File password" title="Enter the password for this file" required/>
+                            }
+                            <button type="submit" class="btn-primary">Download</button>
+                        </form>
+                    </div>
+                }
+
+            </div>
         </div>
 
         @otherDownloadOptions(view, ddl)

@@ -1,6 +1,6 @@
 import {ApiDownloadData, ApiDownloadDone, ApiDownloadInit} from '../api/api_download';
 import {fmtProgress, sleep} from '../util';
-import {BuildBaseDownloadUI} from './download';
+import {BuildBaseDownloadUI, link} from './download';
 
 export const SetupPickerAPI = async (root: HTMLElement, fileId: string, filename: string, hasPassword: boolean) => {
     if (!window.showSaveFilePicker) {
@@ -10,7 +10,13 @@ export const SetupPickerAPI = async (root: HTMLElement, fileId: string, filename
 
     const {div, form, status, input} = BuildBaseDownloadUI(
         'Picker API',
-        'Stream the file to disk using the showOpenFilePicker API (if avialable).'
+        [
+            'Asks where to save the file, then writes it straight to disk in pieces, retrying any piece that fails. ' +
+                'This is the most reliable option for large files, but it is an experimental feature and only works in some browsers. ' +
+                'For more details see ',
+            link('https://developer.mozilla.org/en-US/docs/Web/API/Window/showOpenFilePicker#browser_compatibility', 'browser compatibility'),
+            '.',
+        ]
     );
 
     if (!hasPassword) {

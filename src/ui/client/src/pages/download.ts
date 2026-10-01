@@ -2,25 +2,54 @@ import {SetupMemoryBlob} from './download_with_memory_blob';
 import {SetupPickerAPI} from './download_with_picker_api';
 import {SetupServiceWorker} from './download_with_service_worker';
 
-export const BuildBaseDownloadUI = (title: string, desc: string) => {
+// link builds an external link that opens in a new tab, for use in help text.
+export const link = (href: string, text: string) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.textContent = text;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    return a;
+};
+
+// helpText is plain text, or a mix of text and elements (e.g. a link) to show in order.
+export const BuildBaseDownloadUI = (title: string, helpText: string | (string | Node)[]) => {
     const div = document.createElement('div');
-    div.className = 'text-left';
+    div.className = 'surface-2 flex flex-col gap-2';
 
-    const label = document.createElement('h2');
+    const details = document.createElement('details');
+    details.className = 'flex flex-col gap-2';
+
+    const summary = document.createElement('summary');
+    summary.className = 'flex items-baseline gap-2 cursor-pointer';
+
+    const label = document.createElement('h3');
     label.textContent = title;
-    label.title = desc;
-    div.appendChild(label);
+    summary.appendChild(label);
 
-    const status = document.createElement('p');
+    const hint = document.createElement('small');
+    hint.textContent = '(click for help)';
+    summary.appendChild(hint);
+
+    const help = document.createElement('p');
+    help.append(...(typeof helpText === 'string' ? [helpText] : helpText));
+
+    details.appendChild(summary);
+    details.appendChild(help);
+    div.appendChild(details);
+
+    const status = document.createElement('small');
+    status.className = 'empty:hidden';
     div.appendChild(status);
 
     const form = document.createElement('form');
-    form.className = 'flex flex-col gap-1 m-0';
+    form.className = 'flex flex-col gap-2';
 
     const input = document.createElement('input');
     input.type = 'password';
     input.name = 'p';
-    input.placeholder = 'file password';
+    input.placeholder = 'File password';
+    input.setAttribute('aria-label', 'File password');
     input.title = 'Enter the password for this file';
     input.required = true;
     form.appendChild(input);

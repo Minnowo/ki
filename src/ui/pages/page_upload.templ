@@ -7,88 +7,90 @@ import(
     "ki/src/ui"
 )
 
-templ e2eOptions(view *PageUploadView ) {
+templ e2eOptions(view *PageUploadView) {
 
-    <br/>
-    <h1>E2E options</h1>
-    <br/>
+    <div class="surface-1 flex flex-col gap-4">
+        <div>
+            <h2>E2E options</h2>
+            <small>Encrypt the file with a password before uploading it.</small>
+        </div>
 
-    <pre class="my-2" title="GPG command to encrypt a file with a password">
-        <textarea class="w-full" rows="1">
-            gpg -c your_file.txt
-        </textarea>
-    </pre>
+        <div class="flex flex-col gap-1" title="GPG command to encrypt a file with a password">
+            <small>GPG</small>
+            <pre><code>gpg -c your_file.txt</code></pre>
+        </div>
 
-    <pre class="my-2" title="7-Zip command to encrypt a file with a password">
-        <textarea class="w-full" rows="1">
-            7z a output.7z -pyour_password your_file.txt
-        </textarea>
-    </pre>
+        <div class="flex flex-col gap-1" title="7-Zip command to encrypt a file with a password">
+            <small>7-Zip</small>
+            <pre><code>7z a output.7z -pyour_password your_file.txt</code></pre>
+        </div>
+    </div>
 }
 
 templ PageUpload(view *PageUploadView) {
 
     @Base(&view.BaseView) {
 
-        <br/>
-        <h1>Upload a file</h1>
-        <h3>File must be less than { bytes.PrettyByteSize64(config.MaxUploadSize()) } </h3>
-        <br/>
+        <div>
+            <h1>Upload a file</h1>
+            <small>File must be less than { bytes.PrettyByteSize64(config.MaxUploadSize()) }</small>
+        </div>
 
-        <div id="mount"></div>
-        <form id="upload_form" enctype="multipart/form-data" action="/api/ul/full" method="POST">
+        <div class="surface-1 flex flex-col gap-4">
 
-            @ui.CSRF(view.R)
+            <form id="upload_form" class="flex flex-col gap-4" enctype="multipart/form-data" action="/api/ul/full" method="POST">
 
-            <table class="table-auto table-padded">
+                @ui.CSRF(view.R)
 
-            <tbody class="text-right">
+                <div class="flex flex-col gap-2">
+                    <h3>Expires after</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <label class="flex flex-col gap-1">
+                            Days
+                            <input type="number" title="Expire after this many days" name={ formkeys.UPLOAD_FORM_EXPIRE_DAYS } value="0" min="0" required/>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            Hours
+                            <input type="number" title="Expire after this many hours" name={ formkeys.UPLOAD_FORM_EXPIRE_HOURS } value="1" min="0" required/>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            Minutes
+                            <input type="number" title="Expire after this many minutes" name={ formkeys.UPLOAD_FORM_EXPIRE_MINUTES } value="0" min="0" required/>
+                        </label>
+                        <label class="flex flex-col gap-1">
+                            Downloads
+                            <input type="number" title="Expire after this many downloads" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="1" required/>
+                        </label>
+                    </div>
+                </div>
 
-                <tr title="Expire after this many days">
-                    <td class="px-2"> Days </td>
-                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DAYS } value="0" min="0" required> </td>
-                </tr>
-                <tr title="Expire after this many hours">
-                    <td class="px-2"> Hours </td>
-                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_HOURS } value="1" min="0" required> </td>
-                </tr>
-                <tr title="Expire after this many minutes">
-                    <td class="px-2"> Minutes </td>
-                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_MINUTES } value="0" min="0" required> </td>
-                </tr>
-                <tr title="Expired after this many downloads">
-                    <td class="px-2"> Downloads </td>
-                    <td> <input class="w-full" type="number" name={ formkeys.UPLOAD_FORM_EXPIRE_DOWNLOADS } value="1" min="1" required> </td>
-                </tr>
-                <tr title="Never write file metadata to disk (file will expire if server restarts or crashes)">
-                    <td class="px-2"> Memory Only </td>
-                    <td> 
-                        <select class="w-full" name={ formkeys.UPLOAD_FORM_MEMORY_ONLY }>
+                <div class="flex flex-col gap-2">
+                    <label class="flex flex-col gap-1">
+                        Memory only
+                        <select title="Never write file metadata to disk (file will expire if server restarts or crashes)" name={ formkeys.UPLOAD_FORM_MEMORY_ONLY }>
                             <option value="false">No</option>
                             <option value="true">Yes</option>
                         </select>
-                    </td>
-                </tr>
-                <tr title="Require this password to download the file">
-                    <td class="px-2"> Password (Optional) </td>
-                    <td> <input class="w-full" type="password" name={ formkeys.UPLOAD_FORM_PASSWORD }> </td>
-                </tr>
-                <tr title="Choose the file to upload">
-                    <td colspan="2"> 
-                        <input class="w-full" type="file" name={ formkeys.UPLOAD_FORM_FILE } required>
-                    </td>
-                </tr>
-                <tr title="Upload the selected file">
-                    <td colspan="2"> 
-                        <input class="w-full" type="submit" value="Upload">
-                    </td>
-                </tr>
+                    </label>
+                    <label class="flex flex-col gap-1">
+                        Password
+                        <input type="password" title="Require this password to download the file" name={ formkeys.UPLOAD_FORM_PASSWORD } placeholder="Optional" autocomplete="new-password"/>
+                    </label>
+                    <label class="flex flex-col gap-1">
+                        File
+                        <input type="file" title="Choose the file to upload" name={ formkeys.UPLOAD_FORM_FILE } required/>
+                    </label>
+                </div>
 
-            </tbody>
+                <div class="flex justify-end gap-2">
+                    <button type="submit" class="btn-primary" title="Upload the selected file">Upload</button>
+                </div>
 
-            </table>
+            </form>
 
-        </form>
+            <div id="mount" class="contents"></div>
+
+        </div>
 
         @e2eOptions(view)
 

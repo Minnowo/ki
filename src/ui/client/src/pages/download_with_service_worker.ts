@@ -7,13 +7,14 @@ export const SetupServiceWorker = async (root: HTMLElement, fileId: string, hasP
 
     const {div, form, input, status} = BuildBaseDownloadUI(
         'Service Worker',
-        'Stream the file as an http(s) download using a service worker.'
+        'Streams the file in pieces through a service worker, so it shows up as a normal download in your browser\'s download list. ' +
+            'It works in most browsers (including Firefox and Safari) and handles large files. ' +
+            'Keep this page open until the download finishes, or the download may be cut short.'
     );
 
     form.action = ddl;
     form.method = 'GET';
     form.target = '_blank';
-    form.className = 'flex flex-col gap-1';
     form.setAttribute('rel', 'noopener noreferrer');
 
     if (!hasPassword) {

@@ -2,40 +2,21 @@ package pages
 
 templ Header(view *BaseView) {
 
-    <nav>
-        [
-        <a href="/login">Login</a>
-        &nbsp;
-        <a href="/logout">Logout</a>
-        ]
-        &nbsp;
-        &nbsp;
-        &nbsp;
-        [
+    <nav class="flex flex-wrap items-center gap-4">
         <a href="/upload">Upload</a>
-        &nbsp;
         <a href="/download">Download</a>
-        ]
 
-        if view != nil {
-
-            if view.IsCloudflare {
-
-                &nbsp;
-                &nbsp;
-                &nbsp;
-                [
-                <span 
-                    class="text-c-l-red"
-                    title="This connection is being MitM'd (man-in-the-middle) by CloudFlare.">
-
-                    Cloudflare MitM
-                </span>
-                ]
-            }
+        if view != nil && view.IsCloudflare {
+            <span
+                class="text-c-error"
+                title="This connection is being MitM'd (man-in-the-middle) by CloudFlare.">
+                Cloudflare MitM
+            </span>
         }
 
-        <hr/>
+        <div class="ml-auto flex items-center gap-4">
+            <a href="/login">Login</a>
+            <a href="/logout">Logout</a>
+        </div>
     </nav>
 }
-

@@ -14,13 +14,17 @@ templ Base(view *BaseView) {
         <script src="/static/js/ki.js" > </script>
     </head>
 
-    <body class="lg:p-32 md:p-16 p-8 bg-c-black text-c-white">
+    <body class="px-4 py-8">
 
-        @Header(view)
+        <div class="mx-auto max-w-2xl flex flex-col gap-4">
 
-        <center>
-            { children... }
-        </center>
+            @Header(view)
+
+            <main class="flex flex-col gap-4">
+                { children... }
+            </main>
+
+        </div>
 
     </body>
     </html>

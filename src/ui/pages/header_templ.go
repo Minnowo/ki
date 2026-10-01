@@ -29,19 +29,17 @@ func Header(view *BaseView) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav>[ <a href=\"/login\">Login</a> &nbsp; <a href=\"/logout\">Logout</a> ] &nbsp; &nbsp; &nbsp; [ <a href=\"/upload\">Upload</a> &nbsp; <a href=\"/download\">Download</a> ] ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav class=\"flex flex-wrap items-center gap-4\"><a href=\"/upload\">Upload</a> <a href=\"/download\">Download</a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if view != nil {
-			if view.IsCloudflare {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "&nbsp; &nbsp; &nbsp; [ <span class=\"text-c-l-red\" title=\"This connection is being MitM'd (man-in-the-middle) by CloudFlare.\">Cloudflare MitM</span> ]")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
+		if view != nil && view.IsCloudflare {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<span class=\"text-c-error\" title=\"This connection is being MitM'd (man-in-the-middle) by CloudFlare.\">Cloudflare MitM</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<hr></nav>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"ml-auto flex items-center gap-4\"><a href=\"/login\">Login</a> <a href=\"/logout\">Logout</a></div></nav>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

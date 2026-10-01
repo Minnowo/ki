@@ -3,19 +3,14 @@ import {fmtProgress} from '../util';
 
 const makeProgressUI = () => {
     const cont = document.createElement('div');
-    cont.style.display = 'flex';
-    cont.style.alignItems = 'center';
-    cont.style.justifyContent = 'center';
-    cont.style.gap = '10px';
+    cont.className = 'flex items-center gap-2';
 
-    const prog = document.createElement('div');
-    prog.style.whiteSpace = 'pre';
-    prog.style.fontFamily = 'monospace';
+    const prog = document.createElement('span');
+    prog.className = 'flex-1 tabular-nums';
 
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
-    cancel.style.cursor = 'pointer';
 
     cont.appendChild(prog);
     cont.appendChild(cancel);
@@ -156,6 +151,7 @@ export const InitUpload = (mountId: string, formId: string, maxUploadSize: numbe
         }
 
         const status = document.createElement('p');
+        status.className = 'text-c-error empty:hidden';
         root.appendChild(status);
 
         form.addEventListener('submit', (event) => {

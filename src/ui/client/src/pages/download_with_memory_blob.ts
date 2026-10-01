@@ -5,7 +5,9 @@ import {BuildBaseDownloadUI} from './download';
 export const SetupMemoryBlob = async (root: HTMLElement, fileId: string, filename: string, hasPassword: boolean) => {
     const {div, form, status, input} = BuildBaseDownloadUI(
         'In Memory',
-        'Download and combine the file in memory. This is not recommended and should only be used if no other option is available.'
+        'Downloads the whole file into this tab\'s memory, then saves it once it has finished. ' +
+            'It works in any browser with JavaScript, but the file has to fit in memory, so large files can crash the tab. ' +
+            'If the file size is larger than your computer has memory, do not use this option.'
     );
 
     if (!hasPassword) {
