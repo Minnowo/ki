@@ -295,7 +295,7 @@ func TestUploadSessionStore_ClearExpired(t *testing.T) {
 
 		session, _ := f.uploadSessionStore.get(id)
 		tmpPath := session.TempFile.Name()
-		session.LastActivity = time.Now().Add(-2 * time.Hour) // far in the past
+		session.LastActivity.Set(time.Now().Add(-2 * time.Hour)) // far in the past
 
 		f.uploadSessionStore.timeout = time.Minute
 		f.uploadSessionStore.ClearExpired()

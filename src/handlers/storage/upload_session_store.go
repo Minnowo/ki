@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"os"
 	"sync"
 	"time"
 
@@ -45,23 +44,44 @@ func (s *UploadSessionStore) remove(ID SessionToken) {
 	delete(s.sessions, ID)
 }
 
-func (s *UploadSessionStore) ClearExpired() {
+// idle returns the sessions which have been idle for longer than the timeout.
+func (s *UploadSessionStore) idle() map[SessionToken]*UploadSession {
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	now := time.Now()
+	idle := make(map[SessionToken]*UploadSession)
 
 	for id, session := range s.sessions {
+		if session.LastActivity.IdleFor(now, s.timeout) {
+			idle[id] = session
+		}
+	}
 
-		if now.Sub(session.LastActivity) > s.timeout {
+	return idle
+}
 
-			session.TempFile.Close()
-			os.Remove(session.TempFile.Name())
+// ClearExpired deletes timed-out sessions and their temp files.
+//
+// Each idle session is locked before being cleaned up, so a session is never cleaned up while a request is using it.
+// The store lock is not held while waiting on a session, since a request holding the session lock may need the store lock to remove it.
+func (s *UploadSessionStore) ClearExpired() {
 
-			delete(s.sessions, id)
+	for id, session := range s.idle() {
+
+		session.mu.Lock()
+
+		// a request may have used the session while we were waiting for the lock
+		if !session.closed && session.LastActivity.IdleFor(time.Now(), s.timeout) {
+
+			session.Cleanup()
+
+			s.remove(id)
 
 			log.Info().Str("id", id.Hex()).Msg("swept expired upload session")
 		}
+
+		session.mu.Unlock()
 	}
 }

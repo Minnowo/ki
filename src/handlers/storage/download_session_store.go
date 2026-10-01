@@ -40,23 +40,44 @@ func (s *DownloadSessionStore) remove(id SessionToken) {
 	delete(s.sessions, id)
 }
 
-// removeExpired closes removes timed-out sessions from the store.
-func (s *DownloadSessionStore) removeExpired() {
+// idle returns the sessions which have been idle for longer than the timeout.
+func (s *DownloadSessionStore) idle() map[SessionToken]*DownloadSession {
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	now := time.Now()
+	idle := make(map[SessionToken]*DownloadSession)
 
 	for id, session := range s.sessions {
+		if session.LastActivity.IdleFor(now, s.timeout) {
+			idle[id] = session
+		}
+	}
 
-		if now.Sub(session.LastActivity) > s.timeout {
+	return idle
+}
+
+// removeExpired closes and removes timed-out sessions from the store.
+//
+// Each idle session is locked before being closed, so a session is never closed while a request is using it.
+// The store lock is not held while waiting on a session, since a request holding the session lock may need the store lock to remove it.
+func (s *DownloadSessionStore) removeExpired() {
+
+	for id, session := range s.idle() {
+
+		session.mu.Lock()
+
+		// a request may have used the session while we were waiting for the lock
+		if !session.closed && session.LastActivity.IdleFor(time.Now(), s.timeout) {
 
 			session.Close()
 
-			delete(s.sessions, id)
+			s.remove(id)
 
 			log.Info().Str("id", id.Hex()).Msg("swept expired download session")
 		}
+
+		session.mu.Unlock()
 	}
 }

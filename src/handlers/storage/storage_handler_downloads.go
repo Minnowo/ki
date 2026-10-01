@@ -6,7 +6,6 @@ import (
 	"ki/src/config"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -113,14 +112,16 @@ func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (S
 	var sessionID SessionToken
 	sessionID.New()
 
-	f.downloadSessionStore.add(sessionID, &DownloadSession{
-		Stream:       fstream,
-		TotalBytes:   file.Size,
-		FileID:       fileID,
-		File:         *file.Metadata(),
-		LastActivity: time.Now(),
-		buf:          make([]byte, config.DOWNLOAD_BUFFER_SIZE),
-	})
+	session := &DownloadSession{
+		Stream:     fstream,
+		TotalBytes: file.Size,
+		FileID:     fileID,
+		File:       *file.Metadata(),
+		buf:        make([]byte, config.DOWNLOAD_BUFFER_SIZE),
+	}
+	session.LastActivity.Touch()
+
+	f.downloadSessionStore.add(sessionID, session)
 
 	log.Info().Hex("id", sessionID[:]).Hex("file", fileID[:]).Msg("began chunked download session")
 
@@ -138,7 +139,8 @@ func (f *StorageHandler) WithDownloadSession(sessionID SessionToken, fileID File
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	if session.FileID != fileID {
+	// the session may have been closed while we were waiting for the lock
+	if session.closed || session.FileID != fileID {
 		return ErrSessionNotFound
 	}
 
@@ -163,7 +165,8 @@ func (f *StorageHandler) AbortDownloadSession(sessionID SessionToken, fileID Fil
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	if session.FileID != fileID {
+	// the session may have been closed while we were waiting for the lock
+	if session.closed || session.FileID != fileID {
 		return ErrSessionNotFound
 	}
 
@@ -178,7 +181,7 @@ func (f *StorageHandler) closeDownloadSession(sessionID SessionToken, session *D
 
 	log.Info().Hex("id", sessionID[:]).Msg("download stream closed")
 
-	session.Stream.Close()
+	session.Close()
 
 	f.downloadSessionStore.remove(sessionID)
 }

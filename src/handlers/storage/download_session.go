@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"sync"
-	"time"
 )
 
 var ErrInvalidSeek = errors.New("invalid seek start position")
@@ -27,7 +26,12 @@ type DownloadSession struct {
 	FileID FileID
 	File   KiMetadata
 
-	LastActivity time.Time
+	// LastActivity can be read without holding mu.
+	LastActivity activityClock
+
+	// closed is set once Stream is closed. A request which got this session from the store
+	// before it was closed must check this after taking mu.
+	closed bool
 
 	// buf is a fixed size buffer containing the last read data from the stream.
 	buf []byte
@@ -37,7 +41,15 @@ type DownloadSession struct {
 	pending []byte
 }
 
+// Close closes the stream. The caller must hold mu.
 func (session *DownloadSession) Close() error {
+
+	if session.closed {
+		return nil
+	}
+
+	session.closed = true
+
 	return session.Stream.Close()
 }
 
@@ -62,11 +74,12 @@ func (session *DownloadSession) WriteToN(w io.Writer, size int64) (int64, error)
 
 	amnt := int64(0)
 	for {
-		if pLen := len(session.pending); pLen > 0 {
+		// checked before reading, so writing exactly the remaining bytes doesn't read past them
+		if size <= 0 {
+			return amnt, nil
+		}
 
-			if size <= 0 {
-				return amnt, nil
-			}
+		if pLen := len(session.pending); pLen > 0 {
 
 			end := int(min(size, int64(pLen)))
 			m, err := w.Write(session.pending[0:end])
@@ -75,7 +88,7 @@ func (session *DownloadSession) WriteToN(w io.Writer, size int64) (int64, error)
 			size -= int64(m)
 
 			session.BytesWritten += int64(m)
-			session.LastActivity = time.Now()
+			session.LastActivity.Touch()
 			session.pending = session.pending[m:]
 
 			if err != nil {

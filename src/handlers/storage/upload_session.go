@@ -35,8 +35,14 @@ type UploadSession struct {
 	PasswordHash     []byte
 	TotalBytes       int64
 	CreatedAt        time.Time
-	LastActivity     time.Time
 	Username         string
+
+	// LastActivity can be read without holding mu.
+	LastActivity activityClock
+
+	// closed is set once TempFile is closed. A request which got this session from the store
+	// before it was closed must check this after taking mu.
+	closed bool
 }
 
 func (s *UploadSession) Write(b []byte) (int, error) {
@@ -50,7 +56,14 @@ func (s *UploadSession) Write(b []byte) (int, error) {
 	return s.CipherWriter.Write(b)
 }
 
+// Cleanup closes and deletes the temp file. The caller must hold mu.
 func (s *UploadSession) Cleanup() {
+
+	if s.closed {
+		return
+	}
+
+	s.closed = true
 	s.TempFile.Close()
 	os.Remove(s.TempFile.Name())
 }

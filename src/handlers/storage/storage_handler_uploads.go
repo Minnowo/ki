@@ -62,7 +62,6 @@ func (f *StorageHandler) CreateUploadSession(fup FileUpload, username string) (S
 		return SessionToken{}, err
 	}
 
-	now := time.Now()
 	session := &UploadSession{
 
 		TempFile: tmpFile,
@@ -80,10 +79,10 @@ func (f *StorageHandler) CreateUploadSession(fup FileUpload, username string) (S
 		MemoryOnly:       fup.MemoryOnly,
 		HasPassword:      fup.Password != "",
 		PasswordHash:     passHash,
-		CreatedAt:        now,
-		LastActivity:     now,
+		CreatedAt:        time.Now(),
 		Username:         username,
 	}
+	session.LastActivity.Touch()
 
 	var sessionID SessionToken
 	sessionID.New()
@@ -108,7 +107,8 @@ func (f *StorageHandler) UploadSessionData(sessionID SessionToken, username stri
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	if session.Username != username {
+	// the session may have been closed while we were waiting for the lock
+	if session.closed || session.Username != username {
 		return 0, ErrSessionNotFound
 	}
 
@@ -125,6 +125,7 @@ func (f *StorageHandler) UploadSessionData(sessionID SessionToken, username stri
 				wN, wErr := session.Write(buffer[0:n])
 
 				bytesWritten += int64(wN)
+				session.LastActivity.Touch()
 
 				if update != nil {
 					update(wN)
@@ -178,7 +179,7 @@ func (f *StorageHandler) UploadSessionData(sessionID SessionToken, username stri
 	})()
 
 	session.TotalBytes += bytesWritten
-	session.LastActivity = time.Now()
+	session.LastActivity.Touch()
 
 	return bytesWritten, err
 }
@@ -196,13 +197,17 @@ func (f *StorageHandler) CompleteUploadSession(uploadId SessionToken, username s
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	if session.Username != username {
+	// the session may have been closed while we were waiting for the lock
+	if session.closed || session.Username != username {
 		return nil, ErrSessionNotFound
 	}
 
 	if err := session.TempFile.Close(); err != nil {
 		return nil, err
 	}
+
+	// the temp file now belongs to the file store, so Cleanup must not delete it
+	session.closed = true
 
 	f.uploadSessionStore.remove(uploadId)
 
@@ -249,7 +254,11 @@ func (f *StorageHandler) AbortUploadSession(uploadId SessionToken, username stri
 		return ErrSessionNotFound
 	}
 
-	if session.Username != username {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	// the session may have been closed while we were waiting for the lock
+	if session.closed || session.Username != username {
 		return ErrSessionNotFound
 	}
 

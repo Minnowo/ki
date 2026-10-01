@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -38,8 +39,14 @@ func TestDownloadSessionStoreRemoveExpired(t *testing.T) {
 	expiredStream := &closeTracker{Reader: strings.NewReader("data")}
 	activeStream := &closeTracker{Reader: strings.NewReader("data")}
 
-	store.add(expiredID, &DownloadSession{Stream: expiredStream, LastActivity: time.Now().Add(-time.Hour)})
-	store.add(activeID, &DownloadSession{Stream: activeStream, LastActivity: time.Now()})
+	expired := &DownloadSession{Stream: expiredStream}
+	expired.LastActivity.Set(time.Now().Add(-time.Hour))
+
+	active := &DownloadSession{Stream: activeStream}
+	active.LastActivity.Touch()
+
+	store.add(expiredID, expired)
+	store.add(activeID, active)
 
 	store.removeExpired()
 
@@ -50,4 +57,28 @@ func TestDownloadSessionStoreRemoveExpired(t *testing.T) {
 	_, ok = store.get(activeID)
 	assert.True(t, ok, "active session should remain")
 	assert.False(t, activeStream.Closed, "active session stream should stay open")
+}
+
+func TestDownloadSessionWriteToNExact(t *testing.T) {
+
+	stream := &closeTracker{Reader: strings.NewReader("abcdefgh")}
+
+	// buffer size divides the data evenly, so pending is empty exactly when size runs out
+	session := &DownloadSession{Stream: stream, TotalBytes: 8, buf: make([]byte, 4)}
+
+	var out strings.Builder
+
+	n, err := session.WriteToN(&out, 4)
+	assert.Nil(t, err, "writing part of the stream should not error")
+	assert.Equal(t, int64(4), n)
+
+	n, err = session.WriteToN(&out, 4)
+	assert.Nil(t, err, "writing exactly the rest of the stream should not error")
+	assert.Equal(t, int64(4), n)
+
+	assert.Equal(t, "abcdefgh", out.String())
+	assert.Equal(t, int64(8), session.BytesWritten)
+
+	_, err = session.WriteToN(&out, 1)
+	assert.ErrorIs(t, err, io.EOF, "reading past the end should return EOF")
 }
