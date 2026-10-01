@@ -2,6 +2,8 @@ package storage
 
 import (
 	"crypto/rand"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"ki/src/config"
 	"ki/src/handlers/crypto"
@@ -14,25 +16,49 @@ import (
 
 var (
 	bBucketFiles = []byte("file_data")
+
+	// bBucketMeta holds the settings used to derive the master key, see openMasterKey.
+	bBucketMeta = []byte("meta")
+
+	bMetaKdfSalt   = []byte("kdf_salt")
+	bMetaKdfRounds = []byte("kdf_rounds")
+	bMetaKeyCheck  = []byte("key_check")
+)
+
+const (
+	// subkey info for file records, and for the value used to check the master secret.
+	infoFileRecord = "ki file record"
+	infoKeyCheck   = "ki master key check"
 )
 
 var (
 	errBucketNotExist = fmt.Errorf("bucket does not exist")
 	errKeyExists      = fmt.Errorf("key exists")
+
+	ErrWrongMasterSecret = errors.New("the master secret does not match the one this database was created with")
+	ErrLegacyDatabase    = errors.New("this database was created by an older version which encrypted files differently, it cannot be read and must be deleted")
 )
 
 var (
 	boltLog = log4zero.Get("BBoltFileStore")
 )
 
+// masterKeyRounds is the number of PBKDF2 rounds used when creating a new database.
+// Existing databases keep the rounds they were created with. Tests lower this to stay fast.
+var masterKeyRounds = crypto.MASTER_KEY_ROUNDS
+
 type BBoltFileStore struct {
-	db        *bolt.DB
-	encrypt   bool
-	keySize   crypto.AESKeySize
-	masterKey string
+	db      *bolt.DB
+	encrypt bool
+	keySize crypto.AESKeySize
+	masterKey []byte
 }
 
 func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
+	return newBBoltFileStore(path, config.GetMasterSecret())
+}
+
+func newBBoltFileStore(path string, secret string) (*BBoltFileStore, error) {
 
 	boltLog.Debug().Str("path", path).Msg("opening bolt database")
 
@@ -42,25 +68,146 @@ func NewBBoltFileStore(path string) (*BBoltFileStore, error) {
 		return nil, err
 	}
 
-	db.Update(func(tx *bolt.Tx) error {
-
-		_, err := tx.CreateBucketIfNotExists(bBucketFiles)
-
-		return err
-	})
-
 	fstore := &BBoltFileStore{
 		db: db,
 
 		// encrypt all metadata. except for the file id.
 		// TODO: also encrypt the file id. Or just the entire database.
 		// TODO: configure this somewhere.
-		encrypt:   true,
-		keySize:   crypto.AES256,
-		masterKey: config.GetMasterSecret(),
+		encrypt: true,
+		keySize: crypto.AES256,
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+
+		files, err := tx.CreateBucketIfNotExists(bBucketFiles)
+
+		if err != nil {
+			return err
+		}
+
+		meta, err := tx.CreateBucketIfNotExists(bBucketMeta)
+
+		if err != nil {
+			return err
+		}
+
+		fstore.masterKey, err = openMasterKey(meta, files, fstore.keySize, secret)
+
+		return err
+	})
+
+	if err != nil {
+		db.Close()
+		return nil, err
 	}
 
 	return fstore, nil
+}
+
+// openMasterKey derives the master key from the master secret.
+// A new database gets a new random salt.
+func openMasterKey(meta *bolt.Bucket, files *bolt.Bucket, kSize crypto.AESKeySize, secret string) ([]byte, error) {
+
+	salt := meta.Get(bMetaKdfSalt)
+
+	if salt == nil {
+
+		// databases from before the meta bucket have files, but no salt
+		if k, _ := files.Cursor().First(); k != nil {
+			return nil, ErrLegacyDatabase
+		}
+
+		return createMasterKey(meta, kSize, secret)
+	}
+
+	roundsBytes := meta.Get(bMetaKdfRounds)
+
+	if len(roundsBytes) != 8 {
+		return nil, fmt.Errorf("invalid master key rounds in database")
+	}
+
+	rounds := int(binary.BigEndian.Uint64(roundsBytes))
+
+	boltLog.Info().Int("rounds", rounds).Msg("deriving master key")
+
+	masterKey, err := crypto.DeriveMasterKey(kSize, secret, salt, rounds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = crypto.OpenWithSubkey(masterKey, nil, infoKeyCheck, meta.Get(bMetaKeyCheck))
+
+	if  err != nil {
+		return nil, ErrWrongMasterSecret
+	}
+
+	return masterKey, nil
+}
+
+func createMasterKey(meta *bolt.Bucket, kSize crypto.AESKeySize, secret string) ([]byte, error) {
+
+	salt := make([]byte, 32)
+
+	if _, err := rand.Read(salt); err != nil {
+		return nil, err
+	}
+
+	boltLog.Info().Int("rounds", masterKeyRounds).Msg("creating master key for new database")
+
+	masterKey, err := crypto.DeriveMasterKey(kSize, secret, salt, masterKeyRounds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	check, err := crypto.SealWithSubkey(masterKey, nil, infoKeyCheck, []byte("ki"))
+
+	if err != nil {
+		return nil, err
+	}
+
+	rounds := binary.BigEndian.AppendUint64(nil, uint64(masterKeyRounds))
+
+	if err := meta.Put(bMetaKdfSalt, salt); err != nil {
+		return nil, err
+	}
+
+	if err := meta.Put(bMetaKdfRounds, rounds); err != nil {
+		return nil, err
+	}
+
+	if err := meta.Put(bMetaKeyCheck, check); err != nil {
+		return nil, err
+	}
+
+	return masterKey, nil
+}
+
+// Close closes the database.
+func (s *BBoltFileStore) Close() error {
+	return s.db.Close()
+}
+
+// seal encrypts a file record for storing under the given id.
+func (s *BBoltFileStore) seal(id []byte, data []byte) ([]byte, error) {
+
+	if !s.encrypt {
+		return data, nil
+	}
+
+	return crypto.SealWithSubkey(s.masterKey, id, infoFileRecord, data)
+}
+
+// open decrypts a file record stored under the given id.
+func (s *BBoltFileStore) open(id []byte, data []byte) ([]byte, error) {
+
+	if !s.encrypt {
+		return data, nil
+	}
+
+	return crypto.OpenWithSubkey(s.masterKey, id, infoFileRecord, data)
 }
 
 func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (FileID, error) {
@@ -99,15 +246,10 @@ func (s *BBoltFileStore) StoreFileEx(file *KiFile, gen func(*FileID) error) (Fil
 
 		boltLog.Debug().Str("name", file.Name).Msg("storing file")
 
-		if s.encrypt {
+		data, err = s.seal(id[:], data)
 
-			encrypted, err := crypto.EncryptBytes(s.keySize, s.masterKey, id[:], data)
-
-			if err != nil {
-				return err
-			}
-
-			data = encrypted
+		if err != nil {
+			return err
 		}
 
 		return b.Put(id[:], data)
@@ -145,15 +287,10 @@ func (s *BBoltFileStore) GetFile(id FileID) (*KiFile, bool) {
 			return ErrFileNotFound
 		}
 
-		if s.encrypt {
+		data, err := s.open(id[:], data)
 
-			decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, id[:], data)
-
-			if err != nil {
-				return err
-			}
-
-			data = decrypted
+		if err != nil {
+			return err
 		}
 
 		return file.FromBinary(data)
@@ -195,15 +332,10 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 			return ErrFileNotFound
 		}
 
-		if s.encrypt {
+		data, err := s.open(id[:], data)
 
-			decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, id[:], data)
-
-			if err != nil {
-				return err
-			}
-
-			data = decrypted
+		if err != nil {
+			return err
 		}
 
 		if err := file.FromBinary(data); err != nil {
@@ -214,21 +346,16 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 			return err
 		}
 
-		data, err := file.ToBinary()
+		data, err = file.ToBinary()
 
 		if err != nil {
 			return err
 		}
 
-		if s.encrypt {
+		data, err = s.seal(id[:], data)
 
-			encrypted, err := crypto.EncryptBytes(s.keySize, s.masterKey, id[:], data)
-
-			if err != nil {
-				return err
-			}
-
-			data = encrypted
+		if err != nil {
+			return err
 		}
 
 		return b.Put(id[:], data)
@@ -260,18 +387,13 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 
 			var file KiFile
 
-			if s.encrypt {
+			v, err := s.open(k, v)
 
-				decrypted, err := crypto.DecryptBytes(s.keySize, s.masterKey, k, v)
+			if err != nil {
 
-				if err != nil {
+				log.Warn().Hex("key", k).Err(err).Msg("unable to decrypt file")
 
-					log.Warn().Hex("key", k).Err(err).Msg("unable to decrypt file")
-
-					return nil
-				}
-
-				v = decrypted
+				return nil
 			}
 
 			if err := file.FromBinary(v); err != nil {

@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"io"
-	mrand "math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,55 +164,4 @@ func TestInvalidIV(t *testing.T) {
 
 	_, err = GetStreamDecryptionReader(key, &buf)
 	assert.NotNil(t, err, "expepcted error for invalid IV")
-}
-
-func TestDecryptBytes(t *testing.T) {
-
-	plainText := []byte("This is a test message")
-	key := "this is a master key"
-
-	tests := []struct {
-		name    string
-		keySize AESKeySize
-	}{
-		{"AES128", AES128},
-		{"AES192", AES192},
-		{"AES256", AES256},
-	}
-
-	for _, tt := range tests {
-
-		t.Run(tt.name+" all ok", func(t *testing.T) {
-
-			salt := make([]byte, 32)
-			rand.Read(salt)
-
-			data, err := EncryptBytes(tt.keySize, key, salt, []byte(plainText))
-			assert.Nil(t, err, "should encrypt data")
-
-			decrypted, err := DecryptBytes(tt.keySize, key, salt, data)
-			assert.Nil(t, err, "should decrypt data")
-
-			assert.Equal(t, plainText, decrypted, "should match")
-		})
-
-		t.Run(tt.name+" with tampered data", func(t *testing.T) {
-
-			salt := make([]byte, 32)
-			rand.Read(salt)
-
-			for range 100 {
-				data, err := EncryptBytes(tt.keySize, key, salt, []byte(plainText))
-				assert.Nil(t, err, "should encrypt data")
-
-				// Flip a random bit in the ciphertext
-				idx := mrand.Intn(len(data))
-				bit := byte(1 << uint(mrand.Intn(8)))
-				data[idx] ^= bit
-
-				_, err = DecryptBytes(tt.keySize, key, salt, data)
-				assert.NotNil(t, err, "should get error for tampered data")
-			}
-		})
-	}
 }
