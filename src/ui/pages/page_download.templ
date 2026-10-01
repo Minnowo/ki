@@ -5,6 +5,7 @@ import(
     "ki/src/pkg/bytes"
     "ki/src/config"
     "ki/src/ui"
+    "ki/src/ui/formkeys"
 	"encoding/hex"
 	"strconv"
 	"time"
@@ -223,16 +224,16 @@ templ PageDownloadFile( view *PageDownloadFileView) {
 
             if !view.File.IsLarge() {
 
-                // direct http download only available for small files
-                <div class="flex flex-col">
-                    <h2 title="Direct download">
-                        <a href={ templ.SafeURL(ddl) } target="_blank" rel="noopener noreferrer">
-                            Direct Download
-                        </a>
-                    </h2>
-                    <p>
-                        Use username: <span class="font-mono">anon</span>
-                    </p>
+                // direct http download only available for small files, works without javascript
+                <div class="text-left">
+                    <h2 title="Download the file with a normal browser download">Direct Download</h2>
+                    <form class="flex flex-col gap-1 m-0" action={ templ.SafeURL(ddl) } method="POST">
+                        @ui.CSRF(view.R)
+                        if view.File.UserSetPassword {
+                            <input type="password" name={ formkeys.DOWNLOAD_FORM_PASSWORD } placeholder="file password" title="Enter the password for this file" required>
+                        }
+                        <button type="submit">Download</button>
+                    </form>
                 </div>
             }
 

@@ -80,6 +80,7 @@ func (a *APIV1) Register(r *mux.Router) {
 
 	apiP := api.Methods("POST").Subrouter()
 	apiP.HandleFunc("/api/login", a.api_login)
+	apiP.HandleFunc("/api/dl/full/{fileIdHex}", a.file_download_form)
 
 	apiAuth := apiP.NewRoute().Subrouter()
 	apiAuth.Use(auth.RequireAuth())

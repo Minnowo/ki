@@ -2,7 +2,9 @@ package v1
 
 import (
 	"ki/src/api"
+	"ki/src/config"
 	"ki/src/handlers/storage"
+	"ki/src/ui/formkeys"
 	"ki/src/ui/pages"
 	"net/http"
 
@@ -58,6 +60,7 @@ func (a *APIV1) ui_download(w http.ResponseWriter, r *http.Request) {
 	}).Render(r.Context(), w)
 }
 
+// file_download serves a file, reading the password from basic auth (for curl / wget).
 func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 
 	var key storage.FileID
@@ -73,12 +76,49 @@ func (a *APIV1) file_download(w http.ResponseWriter, r *http.Request) {
 		password = ""
 	}
 
+	a.serveFile(w, key, password, true)
+}
+
+// file_download_form serves a file, reading the password from a posted form (for browsers).
+func (a *APIV1) file_download_form(w http.ResponseWriter, r *http.Request) {
+
+	var key storage.FileID
+
+	if !getFileID(r, &key) {
+		api.NotFound(w)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, config.MAX_DOWNLOAD_FORM_SIZE)
+
+	if err := r.ParseForm(); err != nil {
+		api.Done(w, http.StatusBadRequest, "failed to parse form")
+		return
+	}
+
+	csrfTok := r.PostFormValue(formkeys.CSRF_FORM_FIELD)
+
+	if csrfTok == "" || !a.csrfHandler.VerifyStr(r, csrfTok) {
+		api.Done(w, http.StatusForbidden, "invalid csrf")
+		return
+	}
+
+	a.serveFile(w, key, r.PostFormValue(formkeys.DOWNLOAD_FORM_PASSWORD), false)
+}
+
+// serveFile writes the file to the client.
+// basicAuth controls whether a missing / wrong password asks the browser for basic auth credentials.
+func (a *APIV1) serveFile(w http.ResponseWriter, key storage.FileID, password string, basicAuth bool) {
+
 	err := a.fileStore.ReadFile(w, key, password)
 
 	switch {
-	case err == storage.ErrNeedsAuth:
+	case err == storage.ErrNeedsAuth && basicAuth:
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		api.Done(w, http.StatusUnauthorized, "This file requires a password. Provide basic auth with any username and the password for this file. (The username will be ignored)")
+
+	case err == storage.ErrNeedsAuth:
+		api.Done(w, http.StatusUnauthorized, "The password is incorrect")
 
 	case err == storage.ErrFileNotFound:
 		api.Done(w, http.StatusNotFound, "The file was not found")
