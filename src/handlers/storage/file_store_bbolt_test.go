@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"ki/src/config"
 	"path"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 func init() {
 	// deriving the master key at full strength for every test store is too slow
-	masterKeyRounds = 1000
+	config.SetMasterKeyRounds(1000)
 }
 
 func testBoltFile() *KiFile {
@@ -56,9 +57,9 @@ func TestBBoltFileStore_Reopen(t *testing.T) {
 	})
 
 	t.Run("keeps the rounds it was created with", func(t *testing.T) {
-		old := masterKeyRounds
-		masterKeyRounds = 2000
-		defer func() { masterKeyRounds = old }()
+		old := config.MasterKeyRounds()
+		config.SetMasterKeyRounds(2000)
+		defer config.SetMasterKeyRounds(old)
 
 		store, err := newBBoltFileStore(dbPath, "correct secret")
 		assert.NoError(t, err)

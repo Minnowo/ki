@@ -19,6 +19,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	// deriving the master key at full strength for every test database is too slow
+	config.SetMasterKeyRounds(1000)
+}
+
 // setupAPI creates an APIV1 with a named test user and returns the router plus
 // a session-cookie value that authenticates as that user.
 func setupAPI(t *testing.T, username string) (*APIV1, *mux.Router, string) {

@@ -90,7 +90,8 @@ const downloadWithPickerAPI = async (
 
             let resp: Response;
             try {
-                resp = await ApiDownloadData(fileIdHex, sessionID);
+                // always ask for where we are, so a chunk which failed part way is resent from there
+                resp = await ApiDownloadData(fileIdHex, sessionID, bytesRead);
                 partNum++;
             } catch (e) {
                 retries++;
@@ -124,8 +125,19 @@ const downloadWithPickerAPI = async (
 
             const reader = resp.body.getReader();
 
+            let readError: unknown = null;
+
             while (true) {
-                const {done, value} = await reader.read();
+                const result = await reader.read().catch((e: unknown) => {
+                    readError = e ?? 'read failed';
+                    return null;
+                });
+
+                if (result === null) {
+                    break;
+                }
+
+                const {done, value} = result;
 
                 if (done) {
                     break;
@@ -145,6 +157,20 @@ const downloadWithPickerAPI = async (
                 bytesRead += value.length;
 
                 setStatus(fmtProgress(bytesRead, totalSize, startTime));
+            }
+
+            // the connection dropped part way through the chunk, retry from bytesRead
+            if (readError !== null) {
+                retries++;
+
+                if (retries > retryAmnt) {
+                    await writable.abort().catch(() => {});
+                    return `Aborted: max retries exceed`;
+                }
+
+                setStatus(`Download error: ${readError}: Waiting before retrying...`);
+
+                await sleep(500 * retries);
             }
         }
 

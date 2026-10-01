@@ -43,14 +43,10 @@ var (
 	boltLog = log4zero.Get("BBoltFileStore")
 )
 
-// masterKeyRounds is the number of PBKDF2 rounds used when creating a new database.
-// Existing databases keep the rounds they were created with. Tests lower this to stay fast.
-var masterKeyRounds = crypto.MASTER_KEY_ROUNDS
-
 type BBoltFileStore struct {
-	db      *bolt.DB
-	encrypt bool
-	keySize crypto.AESKeySize
+	db        *bolt.DB
+	encrypt   bool
+	keySize   crypto.AESKeySize
 	masterKey []byte
 }
 
@@ -139,7 +135,7 @@ func openMasterKey(meta *bolt.Bucket, files *bolt.Bucket, kSize crypto.AESKeySiz
 
 	_, err = crypto.OpenWithSubkey(masterKey, nil, infoKeyCheck, meta.Get(bMetaKeyCheck))
 
-	if  err != nil {
+	if err != nil {
 		return nil, ErrWrongMasterSecret
 	}
 
@@ -153,6 +149,8 @@ func createMasterKey(meta *bolt.Bucket, kSize crypto.AESKeySize, secret string) 
 	if _, err := rand.Read(salt); err != nil {
 		return nil, err
 	}
+
+	masterKeyRounds := config.MasterKeyRounds()
 
 	boltLog.Info().Int("rounds", masterKeyRounds).Msg("creating master key for new database")
 

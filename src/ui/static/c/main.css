@@ -302,6 +302,9 @@
   .ml-auto {
     margin-left: auto;
   }
+  .block {
+    display: block;
+  }
   .contents {
     display: contents;
   }

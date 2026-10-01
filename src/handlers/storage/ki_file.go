@@ -2,7 +2,6 @@ package storage
 
 import (
 	"crypto/rand"
-	"io"
 	"ki/src/config"
 	"ki/src/handlers/crypto"
 	"ki/src/pkg/bytes"
@@ -116,7 +115,7 @@ func (f *KiFile) PasswordIsValid(password string) bool {
 // NewReader gets a new reader for this file's data.
 // Reader should be valid even if the file is expired.
 // The caller is in charge of making sure this stream is not used on expired files.
-func (f *KiFile) NewReader(password string) (io.ReadCloser, error) {
+func (f *KiFile) NewReader(password string) (*crypto.SeekableDecryptionReader, error) {
 
 	fileHandle, err := os.Open(f.FilePath)
 
@@ -124,12 +123,12 @@ func (f *KiFile) NewReader(password string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	var aesr io.Reader
+	var reader *crypto.SeekableDecryptionReader
 
 	if f.UserSetPassword {
-		aesr, err = crypto.GetStreamDecryptionReaderEx(f.KeySize, f.Key, password, fileHandle)
+		reader, err = crypto.GetSeekableDecryptionReaderEx(f.KeySize, f.Key, password, fileHandle)
 	} else {
-		aesr, err = crypto.GetStreamDecryptionReader(f.Key, fileHandle)
+		reader, err = crypto.GetSeekableDecryptionReader(f.Key, fileHandle)
 	}
 
 	if err != nil {
@@ -137,13 +136,7 @@ func (f *KiFile) NewReader(password string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	var fstream crypto.CipherCloseReader = crypto.CipherCloseReader{
-		UnderStream:  fileHandle,
-		CipherStream: aesr,
-	}
-
-	return &fstream, nil
-
+	return reader, nil
 }
 
 // Clean expires this file and deletes most information about it.

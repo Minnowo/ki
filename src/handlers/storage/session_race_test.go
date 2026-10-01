@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"sync/atomic"
@@ -56,6 +57,10 @@ func (s *slowStream) Read(p []byte) (int, error) {
 func (s *slowStream) Close() error {
 	s.closed.Store(true)
 	return nil
+}
+
+func (s *slowStream) SeekTo(offset int64) error {
+	return errors.New("slowStream cannot seek")
 }
 
 // sweepUntil calls sweep in a loop until done is closed.

@@ -8,20 +8,34 @@ import (
 
 var ErrInvalidSeek = errors.New("invalid seek start position")
 
+// FileStream is a decrypted file which can be moved to any position.
+type FileStream interface {
+	io.ReadCloser
+	SeekTo(offset int64) error
+}
+
 // DownloadSession holds an open decryption reader for a chunked download.
-// The AES-CTR stream state is maintained naturally as the reader is consumed
-// sequentially across multiple chunk requests.
+//
+// The session counts as one download, so it must not deliver the file more than once.
+// Chunks are read in order, and only the last chunk can be read again, so a client can retry a chunk which
+// failed to arrive. See StartChunk.
 type DownloadSession struct {
 	mu sync.Mutex
 
 	// Open decryption reader; stays alive between chunk requests.
-	Stream io.ReadCloser
+	Stream FileStream
 
 	// Total file size, reported to the client so it knows when all chunks are received.
 	TotalBytes int64
 
-	// Bytes delivered to the client so far.
+	// Bytes delivered to the client so far. This is the position of the next byte WriteToN will write.
 	BytesWritten int64
+
+	// chunkStart is where the last chunk started. A new chunk cannot start before this.
+	chunkStart int64
+
+	// seekFailed is set if Stream failed to seek, so its position no longer matches BytesWritten.
+	seekFailed bool
 
 	FileID FileID
 	File   KiMetadata
@@ -53,19 +67,37 @@ func (session *DownloadSession) Close() error {
 	return session.Stream.Close()
 }
 
-// SeekUntil reads the session download until the given position.
-// The position must be ahead or equal to the current position, otherwise ErrInvalidSeek is returned.
-func (session *DownloadSession) SeekUntil(start int64) (int64, error) {
+// StartChunk moves the session to start, where the next chunk begins.
+//
+// Moving forward starts a new chunk. Moving back is a retry, and is only allowed as far as the start of the last chunk,
+// otherwise a client could read the whole file again from one session.
+// Returns ErrInvalidSeek if start is before the last chunk or past the end of the file.
+func (session *DownloadSession) StartChunk(start int64) error {
 
-	if start < 0 || start < session.BytesWritten {
-		return 0, ErrInvalidSeek
+	if start < session.chunkStart || start > session.TotalBytes {
+		return ErrInvalidSeek
 	}
 
-	if session.BytesWritten == start {
-		return 0, nil
+	isRetry := start < session.BytesWritten
+
+	if start != session.BytesWritten || session.seekFailed {
+
+		if err := session.Stream.SeekTo(start); err != nil {
+			session.seekFailed = true
+			return err
+		}
+
+		session.seekFailed = false
+		session.BytesWritten = start
+		session.pending = nil
 	}
 
-	return session.WriteToN(io.Discard, start-session.BytesWritten)
+	// a retry keeps the last chunk's start, so it can be retried again
+	if !isRetry {
+		session.chunkStart = start
+	}
+
+	return nil
 }
 
 // WriteToN writes size bytes into the given Writer, stopping when there is an error or it has written size bytes.

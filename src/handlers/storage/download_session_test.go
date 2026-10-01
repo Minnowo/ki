@@ -19,6 +19,11 @@ func (c *closeTracker) Close() error {
 	return nil
 }
 
+func (c *closeTracker) SeekTo(offset int64) error {
+	_, err := c.Seek(offset, io.SeekStart)
+	return err
+}
+
 func TestDownloadSessionClose(t *testing.T) {
 
 	stream := &closeTracker{Reader: strings.NewReader("data")}

@@ -18,7 +18,7 @@ import (
 // without holding the store's lock. A wrong password never takes the lock.
 // This is safe because the password and key of a stored file never change. Only expiry can change in between,
 // which is checked again when the download is counted.
-func (f *StorageHandler) openFile(id FileID, password string) (*KiFile, io.ReadCloser, error) {
+func (f *StorageHandler) openFile(id FileID, password string) (*KiFile, FileStream, error) {
 
 	file, ok := f.metadataStore.GetFile(id)
 
@@ -132,6 +132,10 @@ func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (S
 	return sessionID, file.Metadata(), nil
 }
 
+// WithDownloadSession calls callback with the session locked.
+//
+// The session stays open after the last byte is sent, so the final chunk can be retried.
+// It is closed when the client calls AbortDownloadSession, or when it times out.
 func (f *StorageHandler) WithDownloadSession(sessionID SessionToken, fileID FileID, callback func(session *DownloadSession) error) error {
 
 	session, ok := f.downloadSessionStore.get(sessionID)
@@ -148,13 +152,7 @@ func (f *StorageHandler) WithDownloadSession(sessionID SessionToken, fileID File
 		return ErrSessionNotFound
 	}
 
-	err := callback(session)
-
-	if session.BytesWritten >= session.TotalBytes {
-		f.closeDownloadSession(sessionID, session)
-	}
-
-	return err
+	return callback(session)
 }
 
 // AbortDownloadSession cancels an in-progress download session, closing the stream.

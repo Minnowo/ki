@@ -56,6 +56,10 @@ var (
 	// If the file is larger than this, we will chunk the file.
 	maxChunkSize   int64         = 50 * MB
 	sessionTimeout time.Duration = 30 * time.Minute
+
+	// PBKDF2 rounds used to derive the master key of a new database.
+	// Existing databases keep the rounds they were created with.
+	masterKeyRounds int = crypto.MASTER_KEY_ROUNDS
 )
 
 func MaxUploadSize() int64 {
@@ -79,4 +83,17 @@ func SetMaxChunkSize(size int64) {
 
 func SessionTimeout() time.Duration {
 	return sessionTimeout
+}
+
+func MasterKeyRounds() int {
+	return masterKeyRounds
+}
+
+// SetMasterKeyRounds sets the PBKDF2 rounds used when creating a new database.
+// Lowering this makes the master secret easier to guess, it exists so tests can create databases quickly.
+func SetMasterKeyRounds(rounds int) {
+	if rounds < 1 {
+		panic("master key rounds must be at least 1")
+	}
+	masterKeyRounds = rounds
 }
