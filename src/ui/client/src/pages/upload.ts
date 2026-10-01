@@ -23,8 +23,9 @@ const makeProgressUI = () => {
     return {cont, prog, cancel};
 };
 
-function doSingleUpload(form: HTMLFormElement) {
+function doSingleUpload(root: HTMLElement, form: HTMLFormElement) {
     const {cont, prog, cancel} = makeProgressUI();
+    root.appendChild(cont);
     const xhr = new XMLHttpRequest();
     const startTime = Date.now();
 
@@ -60,17 +61,16 @@ function doSingleUpload(form: HTMLFormElement) {
     xhr.send(new FormData(form));
 }
 
-async function doChunkedUpload(form: HTMLFormElement, fileField: HTMLInputElement, file: File, setStatus: (s: string) => void) {
+async function doChunkedUpload(root: HTMLElement, form: HTMLFormElement, fileField: HTMLInputElement, file: File) {
     const {cont, prog, cancel} = makeProgressUI();
+    root.appendChild(cont);
     let uploadId: string | null = null;
-    let sessiondID: string | null = null;
     let aborted = false;
-    let currentXHR = null;
 
     cancel.onclick = () => {
         aborted = true;
-        if (sessiondID) {
-            ApiUploadAbort(sessiondID).catch(() => {});
+        if (uploadId) {
+            ApiUploadAbort(uploadId).catch(() => {});
         }
         cont.remove();
     };
@@ -108,9 +108,13 @@ async function doChunkedUpload(form: HTMLFormElement, fileField: HTMLInputElemen
 
         try {
             await ApiUploadData(uploadId, chunk, (n: number) => {
-                setStatus(fmtProgress(chunkOffset + n, total, startTime));
+                prog.textContent = fmtProgress(chunkOffset + n, total, startTime);
             });
         } catch (e) {
+            if (aborted) return;
+            ApiUploadAbort(uploadId).catch(() => {});
+            cont.remove();
+            alert('Upload failed: ' + (e instanceof Error ? e.message : e));
             return;
         }
     }
@@ -151,33 +155,33 @@ export const InitUpload = (mountId: string, formId: string, maxUploadSize: numbe
             return;
         }
 
-        const setStatus = (s: string) => {
-            console.log(s);
-        };
+        const status = document.createElement('p');
+        root.appendChild(status);
 
         form.addEventListener('submit', (event) => {
             event.preventDefault();
+            status.textContent = '';
 
             const fileField = form.querySelector<HTMLInputElement>('input[type="file"]');
 
             if (!fileField) {
-                setStatus('Could not find file field.');
+                status.textContent = 'Could not find file field.';
                 return;
             }
 
-            if (!fileField.files) {
-                setStatus('No files selected');
+            if (!fileField.files || fileField.files.length === 0) {
+                status.textContent = 'No files selected';
                 return;
             }
 
             const file = fileField.files[0];
 
             if (file.size > maxUploadSize) {
-                setStatus('File size is too large');
+                status.textContent = 'File size is too large';
             } else if (file.size > chunkSize) {
-                doChunkedUpload(form, fileField, file, setStatus);
+                doChunkedUpload(root, form, fileField, file);
             } else {
-                doSingleUpload(form);
+                doSingleUpload(root, form);
             }
         });
     });
