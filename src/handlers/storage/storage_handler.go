@@ -11,6 +11,7 @@ import (
 	"ki/src/config"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"ki/src/handlers/crypto"
@@ -46,6 +47,35 @@ func NewStorageHandler(dir string, store FileStore, bcryptCost int) StorageHandl
 		uploadSessionStore:   newUploadSessionStore(config.SessionTimeout()),
 		downloadSessionStore: newDownloadSessionStore(config.SessionTimeout()),
 	}
+}
+
+// memoryFileDir is the folder holding the files of memory only uploads.
+func (f *StorageHandler) memoryFileDir() string {
+	return filepath.Join(f.FileDir, config.MEMORY_FILE_DIR_NAME)
+}
+
+// createFile creates a new file to write an upload into.
+// Memory only uploads go into their own folder so they can be cleared on startup, since their metadata does not survive a restart.
+func (f *StorageHandler) createFile(memoryOnly bool) (*os.File, error) {
+
+	dir := f.FileDir
+
+	if memoryOnly {
+
+		dir = f.memoryFileDir()
+
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, err
+		}
+	}
+
+	return os.CreateTemp(dir, config.FILENAME_PREFIX+"*")
+}
+
+// ClearMemoryFiles deletes the files of all memory only uploads.
+// This must only be called on startup, before any uploads, to remove files left over from the last run.
+func (f *StorageHandler) ClearMemoryFiles() error {
+	return os.RemoveAll(f.memoryFileDir())
 }
 
 // ShutdownExpireCheckLoop signals the shutdown of the loop which expires files in the store.
@@ -123,7 +153,7 @@ func (f *StorageHandler) SaveFileWithProgress(upload FileUpload, update func(int
 		return nil, err
 	}
 
-	file, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
+	file, err := f.createFile(upload.MemoryOnly)
 
 	if err != nil {
 		return nil, err

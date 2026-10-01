@@ -39,7 +39,7 @@ func (f *StorageHandler) CreateUploadSession(fup FileUpload, username string) (S
 		}
 	}
 
-	tmpFile, err := os.CreateTemp(f.FileDir, config.FILENAME_PREFIX+"*")
+	tmpFile, err := f.createFile(fup.MemoryOnly)
 
 	if err != nil {
 		return SessionToken{}, err

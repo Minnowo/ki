@@ -33,6 +33,10 @@ const MAX_PASSWORD_LENGTH int = 72 // bcrypt max allowed
 
 const FILENAME_PREFIX string = "ki_"
 
+// MEMORY_FILE_DIR_NAME is the folder inside the file storage dir holding the files of memory only uploads.
+// Their metadata is lost on restart, so the folder is cleared on startup.
+const MEMORY_FILE_DIR_NAME string = "mem"
+
 const SHOW_DOWNLOAD_EXPIRE_TIME bool = true
 const SHOW_DOWNLOAD_EXPIRE_TIME_REMAINING bool = true
 const SHOW_DOWNLOADS_REMAINING bool = true

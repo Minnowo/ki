@@ -41,6 +41,11 @@ func (a *APIV1) Init() {
 	store.ClearExpiredFiles()
 
 	a.fileStore = storage.NewStorageHandler(config.FileStorageDir(), store, bcrypt.DefaultCost)
+
+	if err := a.fileStore.ClearMemoryFiles(); err != nil {
+		log.Panic().Err(err).Msg("could not clear memory only files")
+	}
+
 	a.fileStore.RunExpireCheckLoop(time.Second * 60)
 	a.rateLimiter = ratelimit.New(rate.Every(time.Millisecond*1000), 1)
 	a.csrfHandler = csrf.NewCSRFHandler(

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"ki/src/config"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -427,4 +428,87 @@ func TestFullUpload(t *testing.T) {
 			})
 		}
 	}
+}
+
+// --- Memory only files ---
+
+func TestMemoryOnlyFiles(t *testing.T) {
+
+	filePath := func(t *testing.T, f *StorageHandler, id FileID) string {
+		t.Helper()
+		var path string
+		_, err := f.metadataStore.WithFile(id, func(file *KiFile) error {
+			path = file.FilePath
+			return nil
+		})
+		assert.NoError(t, err)
+		return path
+	}
+
+	for _, memoryOnly := range []bool{true, false} {
+
+		t.Run(fmt.Sprintf("full upload memoryOnly=%v goes in the right folder", memoryOnly), func(t *testing.T) {
+			f := newTestFileStore(t)
+			upload := validUpload()
+			upload.MemoryOnly = memoryOnly
+			upload.FStream = bytes.NewReader([]byte("hello"))
+
+			id, err := f.SaveFile(upload)
+			assert.NoError(t, err)
+
+			want := f.FileDir
+			if memoryOnly {
+				want = f.memoryFileDir()
+			}
+			assert.Equal(t, want, filepath.Dir(filePath(t, &f, *id)))
+		})
+
+		t.Run(fmt.Sprintf("chunked upload memoryOnly=%v goes in the right folder", memoryOnly), func(t *testing.T) {
+			f := newTestFileStore(t)
+			upload := validUpload()
+			upload.MemoryOnly = memoryOnly
+
+			sid, err := f.CreateUploadSession(upload, "alice")
+			assert.NoError(t, err)
+
+			session, _ := f.uploadSessionStore.get(sid)
+
+			want := f.FileDir
+			if memoryOnly {
+				want = f.memoryFileDir()
+			}
+			assert.Equal(t, want, filepath.Dir(session.TempFile.Name()))
+		})
+	}
+
+	t.Run("ClearMemoryFiles only deletes memory only files", func(t *testing.T) {
+		f := newTestFileStore(t)
+
+		memUpload := validUpload()
+		memUpload.MemoryOnly = true
+		memUpload.FStream = bytes.NewReader([]byte("memory"))
+		memID, err := f.SaveFile(memUpload)
+		assert.NoError(t, err)
+
+		diskUpload := validUpload()
+		diskUpload.FStream = bytes.NewReader([]byte("disk"))
+		diskID, err := f.SaveFile(diskUpload)
+		assert.NoError(t, err)
+
+		memPath := filePath(t, &f, *memID)
+		diskPath := filePath(t, &f, *diskID)
+
+		assert.NoError(t, f.ClearMemoryFiles())
+
+		_, err = os.Stat(memPath)
+		assert.True(t, os.IsNotExist(err), "memory only file should be deleted")
+
+		_, err = os.Stat(diskPath)
+		assert.NoError(t, err, "disk file should still exist")
+	})
+
+	t.Run("ClearMemoryFiles is fine when the folder does not exist", func(t *testing.T) {
+		f := newTestFileStore(t)
+		assert.NoError(t, f.ClearMemoryFiles())
+	})
 }
