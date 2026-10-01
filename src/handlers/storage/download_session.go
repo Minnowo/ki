@@ -38,7 +38,7 @@ type DownloadSession struct {
 }
 
 func (session *DownloadSession) Close() error {
-	return session.Close()
+	return session.Stream.Close()
 }
 
 // SeekUntil reads the session download until the given position.
