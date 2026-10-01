@@ -110,6 +110,15 @@ func (s *MixedFileStore) StoreFile(file *KiFile) (FileID, error) {
 	})
 }
 
+func (s *MixedFileStore) GetFile(id FileID) (*KiFile, bool) {
+
+	if s.IsMemoryOnly(&id) {
+		return s.memoryStore.GetFile(id)
+	}
+
+	return s.diskStore.GetFile(id)
+}
+
 func (s *MixedFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 
 	if s.IsMemoryOnly(&id) {

@@ -62,6 +62,22 @@ func (s *MemoryFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (
 	return newFile, err
 }
 
+func (s *MemoryFileStore) GetFile(id FileID) (*KiFile, bool) {
+
+	s.RLock()
+	file, ok := s.files[id]
+	s.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+
+	file.RLock()
+	defer file.RUnlock()
+
+	return file.File.Clone(), true
+}
+
 func (s *MemoryFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 
 	s.RLock()

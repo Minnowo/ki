@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"ki/src/config"
 	"net/http"
 	"strconv"
@@ -10,43 +12,72 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) error {
+// openFile checks the password, opens a reader for the file, and then counts the download.
+//
+// The password check and opening the reader are slow (bcrypt and PBKDF2), so they are done on a copy of the file
+// without holding the store's lock. A wrong password never takes the lock.
+// This is safe because the password and key of a stored file never change. Only expiry can change in between,
+// which is checked again when the download is counted.
+func (f *StorageHandler) openFile(id FileID, password string) (*KiFile, io.ReadCloser, error) {
 
-	var fstream io.ReadCloser
+	file, ok := f.metadataStore.GetFile(id)
 
-	defer func() {
-		if fstream != nil {
-			fstream.Close()
+	if !ok {
+		return nil, nil, ErrFileNotFound
+	}
+
+	if file.IsExpired() {
+		return nil, nil, ErrFileExpired
+	}
+
+	if file.UserSetPassword && !file.PasswordIsValid(password) {
+		return nil, nil, ErrNeedsAuth
+	}
+
+	// don't even need to track active downloads here.
+	// having the file handle is enough to prevent deletion of the file.
+	fstream, err := file.NewReader(password)
+
+	if err != nil {
+
+		// the file was cleaned after we got the copy
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, ErrFileExpired
 		}
-	}()
 
-	file, err := f.metadataStore.WithFile(key, func(file *KiFile) error {
+		return nil, nil, err
+	}
 
+	file, err = f.metadataStore.WithFile(id, func(file *KiFile) error {
+
+		// another download may have used the last allowed download after we got the copy
 		if file.IsExpired() {
 			return ErrFileExpired
 		}
 
-		if file.UserSetPassword && !file.PasswordIsValid(password) {
-			return ErrNeedsAuth
-		}
-
-		// don't even need to track active downloads here.
-		// having the file handle is enough to prevent deletion of the file.
 		file.CountDownload()
-
-		if handle, err := file.NewReader(password); err != nil {
-			return err
-		} else {
-			fstream = handle
-		}
 
 		return nil
 	})
+
+	if err != nil {
+		fstream.Close()
+		return nil, nil, err
+	}
+
+	return file, fstream, nil
+}
+
+func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) error {
+
+	file, fstream, err := f.openFile(key, password)
 
 	// file expired, or the user password was wrong
 	if err != nil {
 		return err
 	}
+
+	defer fstream.Close()
 
 	if r, ok := w.(http.ResponseWriter); ok {
 
@@ -76,36 +107,9 @@ func (f *StorageHandler) ReadFile(w io.Writer, key FileID, password string) erro
 // If the returned error is nil, then the FileID and *KiMetadata should not be used.
 func (f *StorageHandler) BeginChunkedDownload(fileID FileID, password string) (SessionToken, *KiMetadata, error) {
 
-	var fstream io.ReadCloser
-
-	file, err := f.metadataStore.WithFile(fileID, func(file *KiFile) error {
-
-		if file.IsExpired() {
-			return ErrFileExpired
-		}
-
-		if file.UserSetPassword && !file.PasswordIsValid(password) {
-			return ErrNeedsAuth
-		}
-
-		file.CountDownload()
-
-		if handle, err := file.NewReader(password); err != nil {
-			return err
-		} else {
-			fstream = handle
-		}
-
-		return nil
-	})
+	file, fstream, err := f.openFile(fileID, password)
 
 	if err != nil {
-
-		// worth checking this here in case the underlying store implementation returns an error that it shouldn't.
-		if fstream != nil {
-			fstream.Close()
-		}
-
 		return SessionToken{}, nil, err
 	}
 

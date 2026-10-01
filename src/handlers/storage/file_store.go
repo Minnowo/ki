@@ -19,6 +19,11 @@ type FileStore interface {
 	// This clones the given KiFile.
 	StoreFileEx(file *KiFile, gen func(id *FileID) error) (FileID, error)
 
+	// GetFile reads a copy of the file for the given key.
+	// Unlike GetFileMetadata, this may return an expired file, and the caller should check for that case.
+	// The copy may be stale as soon as it is returned. Use WithFile to make changes based on the file's state.
+	GetFile(id FileID) (*KiFile, bool)
+
 	// GetFileMetadata reads a copy of the file's metadata for the given key.
 	// Never returns an expired file's metadata.
 	GetFileMetadata(id FileID) (*KiMetadata, bool)

@@ -309,6 +309,81 @@ func TestFileStore_ClearExpiredFiles(t *testing.T) {
 				metadata, exists = store.GetFileMetadata(expiredID)
 				assert.False(t, exists)
 				assert.Nil(t, metadata)
+
+				// GetFileMetadata hides expired files, so check the record itself was deleted
+				_, exists = store.GetFile(expiredID)
+				assert.False(t, exists, "expired file should be deleted from the store")
+
+				_, exists = store.GetFile(nonExpiredID)
+				assert.True(t, exists)
+			})
+		}
+	}
+}
+
+func TestFileStore_GetFile(t *testing.T) {
+
+	for _, useMemoryOnly := range []bool{false, true} {
+		for _, store := range getStores(t) {
+
+			file := &KiFile{
+				KiMetadata: KiMetadata{
+					Size:             1024,
+					Expires:          time.Now().Add(time.Hour),
+					AllowedDownloads: 10,
+					Name:             "file.txt",
+					UserSetPassword:  true,
+					MemoryOnly:       useMemoryOnly,
+				},
+				FilePath:         "/tmp/file",
+				Key:              []byte("0123456789abcdef0123456789abcdef"),
+				UserPasswordHash: []byte("hash"),
+				KeySize:          32,
+			}
+
+			t.Run("get file", func(t *testing.T) {
+
+				id, err := store.StoreFile(file.Clone())
+				assert.NoError(t, err)
+
+				got, exists := store.GetFile(id)
+				assert.True(t, exists)
+				assert.Equal(t, file.Name, got.Name)
+				assert.Equal(t, file.Key, got.Key)
+				assert.Equal(t, file.UserPasswordHash, got.UserPasswordHash)
+			})
+
+			t.Run("get expired file", func(t *testing.T) {
+
+				expired := file.Clone()
+				expired.Expires = time.Now().Add(-time.Hour)
+
+				id, err := store.StoreFile(expired)
+				assert.NoError(t, err)
+
+				got, exists := store.GetFile(id)
+				assert.True(t, exists, "GetFile should return expired files")
+				assert.True(t, got.IsExpired())
+			})
+
+			t.Run("returned file is a copy", func(t *testing.T) {
+
+				id, err := store.StoreFile(file.Clone())
+				assert.NoError(t, err)
+
+				got, _ := store.GetFile(id)
+				got.Downloads = 5
+				got.Key[0] = 'X'
+
+				again, _ := store.GetFile(id)
+				assert.Equal(t, 0, again.Downloads)
+				assert.Equal(t, file.Key, again.Key)
+			})
+
+			t.Run("get non-existent file", func(t *testing.T) {
+				got, exists := store.GetFile(nonExistID)
+				assert.False(t, exists)
+				assert.Nil(t, got)
 			})
 		}
 	}

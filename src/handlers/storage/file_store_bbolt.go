@@ -127,7 +127,7 @@ func (s *BBoltFileStore) StoreFile(file *KiFile) (FileID, error) {
 	})
 }
 
-func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
+func (s *BBoltFileStore) GetFile(id FileID) (*KiFile, bool) {
 
 	var file KiFile
 
@@ -140,6 +140,10 @@ func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 		}
 
 		data := b.Get(id[:])
+
+		if data == nil {
+			return ErrFileNotFound
+		}
 
 		if s.encrypt {
 
@@ -159,7 +163,14 @@ func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
 		return nil, false
 	}
 
-	if file.IsExpired() {
+	return &file, true
+}
+
+func (s *BBoltFileStore) GetFileMetadata(id FileID) (*KiMetadata, bool) {
+
+	file, ok := s.GetFile(id)
+
+	if !ok || file.IsExpired() {
 		return nil, false
 	}
 
@@ -179,6 +190,10 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 		}
 
 		data := b.Get(id[:])
+
+		if data == nil {
+			return ErrFileNotFound
+		}
 
 		if s.encrypt {
 
@@ -226,9 +241,14 @@ func (s *BBoltFileStore) WithFile(id FileID, mutate func(file *KiFile) error) (*
 	return &file, nil
 }
 
+// ClearExpiredFiles finds expired files with a read-only transaction, cleans them, and then deletes them from the store.
+// Only the final delete holds the write lock, since decrypting every file is slow.
+// An expired file can never become unexpired, so nothing needs to be checked again between the two transactions.
 func (s *BBoltFileStore) ClearExpiredFiles() {
 
-	s.db.Update(func(tx *bolt.Tx) error {
+	expired := make(map[FileID]*KiFile)
+
+	err := s.db.View(func(tx *bolt.Tx) error {
 
 		b := tx.Bucket(bBucketFiles)
 
@@ -236,9 +256,7 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 			return errBucketNotExist
 		}
 
-		var keysToDelete [][]byte
-
-		b.ForEach(func(k []byte, v []byte) error {
+		return b.ForEach(func(k []byte, v []byte) error {
 
 			var file KiFile
 
@@ -263,22 +281,59 @@ func (s *BBoltFileStore) ClearExpiredFiles() {
 				return nil
 			}
 
-			if file.IsExpired() && file.Clean() {
+			if file.IsExpired() {
 
-				// cannot modify the bucket in this function, we must do it after
-				keysToDelete = append(keysToDelete, k)
+				// k is only valid during the transaction, so it is copied into the FileID
+				var id FileID
+				copy(id[:], k)
+
+				expired[id] = &file
 			}
 
 			return nil
 		})
+	})
 
-		for i := 0; i < len(keysToDelete); i++ {
+	if err != nil {
+		boltLog.Error().Err(err).Msg("failed to scan for expired files")
+		return
+	}
 
-			key := keysToDelete[i]
+	var cleaned []FileID
 
-			b.Delete(key)
+	for id, file := range expired {
+
+		// files which fail to be removed from disk stay in the store, so they are retried next time
+		if file.Clean() {
+			cleaned = append(cleaned, id)
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return
+	}
+
+	err = s.db.Update(func(tx *bolt.Tx) error {
+
+		b := tx.Bucket(bBucketFiles)
+
+		if b == nil {
+			return errBucketNotExist
+		}
+
+		for _, id := range cleaned {
+			if err := b.Delete(id[:]); err != nil {
+				return err
+			}
 		}
 
 		return nil
 	})
+
+	if err != nil {
+		boltLog.Error().Err(err).Msg("failed to delete expired files")
+		return
+	}
+
+	boltLog.Info().Int("count", len(cleaned)).Msg("removed expired files")
 }
