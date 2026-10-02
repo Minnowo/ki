@@ -1,3 +1,6 @@
 ki_files/
 users.json
 deploy.sh
+src/ui/client/node_modules/
+.git/
+main.o

@@ -102,10 +102,13 @@ Things to be aware of:
 
 ## Docker
 
-The Docker build doesn't generate the UI assets, so run `make generate` first (see [Building](#building)).
+Images are published to `ghcr.io/minnowo/ki`, or you can build one yourself. The Docker build builds the UI too, so it only needs Docker.
 
 ```sh
+docker pull ghcr.io/minnowo/ki:main && docker tag ghcr.io/minnowo/ki:main ki
+# or
 docker build -t ki .
+
 docker run -p 9070:9070 \
   -v $(pwd)/ki_files:/ki_files \
   -v $(pwd)/users.json:/users.json \

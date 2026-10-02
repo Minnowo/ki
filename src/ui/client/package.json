@@ -7,9 +7,11 @@
         "build": "npm run build:main && npm run build:worker",
         "build:main": "esbuild src/index.ts --bundle --minify --sourcemap --outfile=../static/js/ki.js --format=iife",
         "build:worker": "esbuild src/worker/sw.ts --bundle --minify --sourcemap --outfile=../static/js/sw.js --format=iife",
+        "build:css": "cd ../../.. && NODE_PATH=src/ui/client/node_modules tailwindcss -i src/ui/tailwind.css -o src/ui/static/c/main.css",
         "watch": "esbuild src/index.ts --bundle --sourcemap --outfile=../static/js/ki.js --format=iife --watch"
     },
     "devDependencies": {
+        "@tailwindcss/cli": "4.3.3",
         "esbuild": "^0.28.0",
         "typescript": "^6.0.0"
     },
